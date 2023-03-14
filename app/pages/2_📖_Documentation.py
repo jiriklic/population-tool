@@ -27,8 +27,8 @@ st.markdown("# Documentation")
 # Methodology section
 st.markdown("## Methodology")
 
-# Limitations section
+# Limitation section
 st.markdown("## Key limitations")
 
-# Links section
+# Link section
 st.markdown("## Useful links")
