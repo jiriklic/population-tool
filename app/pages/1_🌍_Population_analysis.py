@@ -1,5 +1,4 @@
 """Proximity analysis page for Streamlit app."""
-import geopandas as gpd
 import streamlit as st
 from src.config_parameters import params
 from src.utils import (
@@ -9,7 +8,7 @@ from src.utils import (
     toggle_menu_button,
 )
 from src.utils_plotting import plot_pop_data
-from src.utils_population import add_population_data, check_gdf_geometry
+from src.utils_population import add_population_data, load_gdf
 
 # Page configuration
 st.set_page_config(layout="wide", page_title=params["browser_title"])
@@ -73,17 +72,10 @@ if not upload_geometry_file:
     st.session_state.stage = 0
 
 if st.session_state.stage > 0:
-    try:
-        gdf = gpd.read_file(upload_geometry_file)
-        if not check_gdf_geometry(gdf):
-            st.error(
-                "The  shapefile contains geometries that are not "
-                "polygons. Check the source data."
-            )
-            st.stop()
+    gdf, error = load_gdf(upload_geometry_file)
 
-    except Exception:
-        st.error("Error with importing the shapefile. Check the source data.")
+    if error:
+        st.error(error)
         st.stop()
 
     st.dataframe(gdf.to_wkt())

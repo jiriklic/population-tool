@@ -6,11 +6,11 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import country_converter as coco
 import geopandas as gpd
-import numpy as np
 import rasterio
 import requests
 import shapely
 import streamlit as st
+from pyproj import CRS
 from rasterio.features import shapes
 from rasterstats import zonal_stats
 from shapely.geometry import shape
@@ -41,6 +41,32 @@ def mock_st_text(text: str, verbose: bool, text_on_streamlit: bool) -> None:
         st.write(text)
     else:
         print(text)
+
+
+def load_gdf(gdf_file: str) -> Tuple[gpd.GeoDataFrame, Optional[str]]:
+    """
+    Load GeoDataFrame, change crs and check validity.
+
+    Inputs
+    ----------
+    gdf_file (str): filename of the geopandas.GeoDataFrame.
+
+    Returns
+    -------
+    gdf (geopandas.GeoDataFrame): GeoDataFrame.
+    error (str, optional): error string if error was generated, otherwise None.
+    """
+    gdf = gpd.read_file(gdf_file)
+    gdf.to_crs(CRS.from_user_input(4326), inplace=True)
+    if all(["Polygon" in geom for geom in gdf.geom_type.tolist()]):
+        error = None
+    else:
+        error = (
+            "Error with the shapefile. Either there were problems with the "
+            "download, or the dataframe contains geometries that are not "
+            "polygons. Check the source data."
+        )
+    return gdf, error
 
 
 def check_gdf_geometry(gdf: gpd.GeoDataFrame) -> bool:
@@ -181,6 +207,8 @@ def retrieve_country_borders_wp(
         gdf = gpd.GeoDataFrame(
             dict(zip(["geometry", "value"], zip(*shape_gen))), crs=src.crs
         )
+
+        del data
 
     cc = coco.CountryConverter()
 
@@ -555,20 +583,15 @@ def download_worldpop_iso3_tif_ftp(
 
 def aggregate_raster_on_geometries(
     raster_file: str,
-    raster_dict: dict,
     geometry_list: List[shapely.Geometry],
     stats: Union[str, List[str]] = "sum",
-) -> Tuple[List, dict]:
+) -> List:
     """
     Compute zonal statistics of a raster file over a list of vector geometries.
 
     Inputs:
     -------
     raster_file (str): filepath or url to the input raster file.
-    raster_dict (dict): dictionary containing raster filepaths as keys and
-        arrays and affine transformed rasters as values. If raster_file is
-        already listed in raster_dict, there is no need to recalculate array
-        and affine transformed raster.
     geometry_list (list): list of shapely geometries (e.g. polygons) over which
         to compute the zonal statistics.
     stats (str or list, optional): One or more statistics to compute for each
@@ -582,23 +605,8 @@ def aggregate_raster_on_geometries(
         a dictionary containing the zonal statistics for a single geometry,
         with keys like 'sum', 'mean', etc. depending on the input 'stats'
         parameter.
-    raster_dict (dict): new raster_dict, which contains data about raster_file.
     """
-    if raster_file in raster_dict.keys():
-        array = raster_dict[raster_file]["array"]
-        affine = raster_dict[raster_file]["affine"]
-    else:
-        raster = rasterio.open(raster_file, nodata=0.0)
-        affine = raster.transform
-        array = raster.read(1)
-        array = array.astype(float)
-        array[array < 0] = np.nan
-        raster_dict[raster_file] = {"array": array, "affine": affine}
-
-    return (
-        zonal_stats(geometry_list, array, affine=affine, stats=stats),
-        raster_dict,
-    )
+    return zonal_stats(geometry_list, raster_file, stats=stats)
 
 
 def add_population_data(
@@ -698,8 +706,6 @@ def add_population_data(
         step_progression = 0.0
         step_size = 0.0
 
-    raster_dict = {}  # type: dict
-
     for i in range(len(all_iso3_list)):
         iso3 = all_iso3_list[i]
         mock_st_text(
@@ -752,10 +758,9 @@ def add_population_data(
             if i == 0:
                 pop_total_dict[label] = {}
 
-            pop_iso3_agg, raster_dict = aggregate_raster_on_geometries(
+            pop_iso3_agg = aggregate_raster_on_geometries(
                 raster_file=raster_file,
                 geometry_list=iso3_list_geometries,
-                raster_dict=raster_dict,
             )
             pop_partial_dict[label] = dict(
                 zip(iso3_list_indexes, [pop["sum"] for pop in pop_iso3_agg])
