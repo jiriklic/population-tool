@@ -136,3 +136,10 @@ dmypy.json
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Tiff files
+*.tiff
+*.tif
+
+# world borders
+app/data/world_borders_wp.geojson

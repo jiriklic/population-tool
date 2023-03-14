@@ -92,7 +92,7 @@ def set_tool_page_style():
 
 
 # Sidebar
-@st.cache(allow_output_mutation=True)
+# @st.cache_data()
 def get_base64_of_bin_file(png_file):
     """
     Get base64 from image file.

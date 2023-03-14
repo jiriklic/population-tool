@@ -1,24 +1,20 @@
 """Configuration file."""
 params = {
     # Title browser tab
-    "browser_title": "Tool name - MapAction",
+    "browser_title": "Population tool - MapAction",
     # Data scientists involved
     "data_scientists": {
-        "Piet": "pgerrits@mapaction.org",
         "Daniele": "dcastellana@mapaction.org",
-        "Cate": "cseale@mapaction.org",
     },
     # Urls
-    "url_data_science_wiki": (
-        "https://mapaction.atlassian.net/wiki/spaces/GAFO/overview"
-    ),
+    "url_data_science_wiki": (""),
     "url_project_wiki": (""),
-    "url_github_repo": "",
+    "url_github_repo": "https://github.com/mapaction/population-tool",
     # Layout and styles
     ## Sidebar
     "MA_logo_width": "60%",
     "MA_logo_background_position": "35% 10%",
-    "sidebar_header": "Tool name",
+    "sidebar_header": "Population tool",
     "sidebar_header_fontsize": "30px",
     "sidebar_header_fontweight": "bold",
     "about_box_background_color": "#dae7f4",

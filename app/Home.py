@@ -26,6 +26,12 @@ st.markdown("# Home")
 
 # First section
 st.markdown("## Introduction")
+st.markdown(
+    """
+    This web app allows you to upload shapefiles and retrieve population data
+    from WorldPop.
+"""
+)
 
 # Second section
 st.markdown("## How to use the tool")
