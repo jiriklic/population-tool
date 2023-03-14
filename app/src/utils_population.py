@@ -243,7 +243,7 @@ def retrieve_country_borders_wp(
 def download_worldpop_iso_tif(
     iso3: str,
     tif_folder: str,
-    method: str = "http",
+    method: str = "ftp",
     year: int = 2020,
     data_type: str = "UNadj_constrained",
     aggregated: bool = True,
