@@ -27,4 +27,4 @@ params = {
     "button_text_fontsize": "24px",
     "button_text_fontweight": "bold",
     "button_background_color": "#dae7f4",
-}
+}  # type: dict

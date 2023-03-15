@@ -25,7 +25,7 @@ def mock_st_text(text: str, verbose: bool, text_on_streamlit: bool) -> None:
     or in jupyter notebook.
 
     Inputs
-    ----------
+    -------
     text (str): text to display.
     verbose (bool): if True, print details run.
     text_on_streamlit (str): if True, print text in the Streamlit app
@@ -48,7 +48,7 @@ def load_gdf(gdf_file: str) -> Tuple[gpd.GeoDataFrame, Optional[str]]:
     Load GeoDataFrame, change crs and check validity.
 
     Inputs
-    ----------
+    -------
     gdf_file (str): filename of the geopandas.GeoDataFrame.
 
     Returns
@@ -73,7 +73,7 @@ def check_gdf_geometry(gdf: gpd.GeoDataFrame) -> bool:
     """Check whether all geometries are polygons or multipolygons.
 
     Inputs
-    ----------
+    -------
     pgdf (geopandas.GeoDataFrame): GeoDataFrame with polygons.
 
     Returns
@@ -91,7 +91,7 @@ def find_intersections_polygon(
     Find the intersections between a Polygon object and country borders.
 
     Inputs
-    ----------
+    -------
     pol (shapely.Polygon): shapely Polygon object.
     world_gdf (geopandas.GeoDataFrame): Geodataframe containing polygons of
         world countries.
@@ -131,7 +131,7 @@ def find_intersections_gdf(
     Country borders are retrieved from WorldPop (1km resolution).
 
     Inputs
-    ----------
+    -------
     gdf (geopandas.GeoDataFrame): GeoDataFrame containing Polygon geometries.
     data_folder (str, optional): folder where auxiliary data was saved (such
         as country borders).
@@ -180,7 +180,7 @@ def retrieve_country_borders_wp(
     columns.
 
     Inputs
-    ----------
+    -------
     tif_folder (str, optional): folder where the world borders raster data is
         saved.
 
@@ -282,7 +282,7 @@ def download_worldpop_iso_tif(
         Default to None.
 
     Returns:
-    --------
+    -------
     filename_list (list): list of filenames of the GeoTIFF files containing the
         population data for the given parameters.
     label_list (list): list of labels for dataframe columns. If the population
@@ -366,7 +366,7 @@ def download_worldpop_iso3_tif_http(
         Default to None.
 
     Returns:
-    --------
+    -------
     filename_list (list): list of filenames of the GeoTIFF files containing the
         population data for the given parameters.
     label_list (list): list of labels for dataframe columns. If the population
@@ -493,7 +493,7 @@ def download_worldpop_iso3_tif_ftp(
         Default to None.
 
     Returns:
-    --------
+    -------
     filename_list (list): list of filenames of the GeoTIFF files containing the
         population data for the given parameters.
     label_list (list): list of labels for dataframe columns. If the population
@@ -594,13 +594,13 @@ def aggregate_raster_on_geometries(
     raster_file (str): filepath or url to the input raster file.
     geometry_list (list): list of shapely geometries (e.g. polygons) over which
         to compute the zonal statistics.
-    stats (str or list, optional): One or more statistics to compute for each
+    stats (str or list, optional): one or more statistics to compute for each
         geometry, such as 'mean', 'sum', 'min', 'max', 'std', etc. Default to
         'sum'.
 
     Returns:
-    --------
-    stats_list (list): List of zonal statistics computed for each input
+    -------
+    stats_list (list): list of zonal statistics computed for each input
         geometry, in the same order as the input list. Each item in the list is
         a dictionary containing the zonal statistics for a single geometry,
         with keys like 'sum', 'mean', etc. depending on the input 'stats'
@@ -777,7 +777,7 @@ def add_population_data(
                 new_step_size = 0.1 / number_of_steps
                 step_progression += new_step_size
 
-                my_bar.progress(step_progression, text=progress_text)
+                my_bar.progress(round(step_progression, 1), text=progress_text)
 
     for label in label_list:
         gdf_with_pop[label] = [

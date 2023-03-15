@@ -1,8 +1,11 @@
 """Proximity analysis page for Streamlit app."""
+import time
+
 import streamlit as st
 from src.utils import (
     add_about,
     add_logo,
+    elapsed_time_string,
     set_tool_page_style,
     toggle_menu_button,
 )
@@ -125,6 +128,7 @@ if st.session_state.stage > 2:
     if run:
         if limit_size_data:
             gdf = gdf.iloc[:4,]
+        start_time = time.time()
         gdf_with_pop = add_population_data(
             gdf=gdf,
             data_type=st.session_state.data_type,
@@ -132,6 +136,8 @@ if st.session_state.stage > 2:
             aggregated=aggregation_dict[aggregation],
             progress_bar=True,
         )
+        elapsed = time.time() - start_time
+        st.markdown(elapsed_time_string(elapsed))
         st.session_state.gdf_with_pop = gdf_with_pop
 
     st.success("Computation complete.")
@@ -162,6 +168,7 @@ if st.session_state.stage > 3:
         col_label=col_label,
         legend_title=legend_title,
         plot_title=plot_title,
+        aggregated=aggregation_dict[aggregation],
     )
 
     st.plotly_chart(fig, use_container_width=True)

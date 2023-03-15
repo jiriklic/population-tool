@@ -24,7 +24,7 @@ def display_polygons_on_map(
     (10m resolution).
 
     Inputs
-    ----------
+    -------
     gdf (geopandas.GeoDataFrame): GeoDataFrame containing Polygon geometries.
     add_countryborders (bool, optional): if True, draw country borders. Default
         to True.
@@ -98,7 +98,7 @@ def color_list_from_cmap(cmap_name: str, n: int) -> Union[List[str], str]:
     Generate a list of n colors from a specified color map.
 
     Inputs
-    ----------
+    -------
     cmap_name (str): name of the color map to use. This should be a valid
     color map name recognized by matplotlib.cm.get_cmap().
 
@@ -106,7 +106,7 @@ def color_list_from_cmap(cmap_name: str, n: int) -> Union[List[str], str]:
 
     Returns
     -------
-    color_list (list of str): A list of n colors represented as hexadecimal
+    color_list (list of str): list of n colors represented as hexadecimal
         strings.
     """
     cmap = matplotlib.cm.get_cmap(cmap_name)
@@ -127,27 +127,27 @@ def plot_pop_data(
     Plot population data on a bar chart.
 
     Inputs
-    ----------
-    gdf (geopandas.GeoDataFrame): a GeoDataFrame object containing geographic
+    -------
+    gdf (geopandas.GeoDataFrame): GeoDataFrame object containing geographic
         data.
-    col_label (str): the column in the GeoDataFrame that contains the labels
+    col_label (str): column in the GeoDataFrame that contains the labels
         for plotting.
-    legend_title (str): the title of the legend for the plot (when
+    legend_title (str): title of the legend for the plot (when
         plotting disaggregated joint data) or the label of the y-axis (when
         plotting aggregated data).
-    plot_title (str): the title of the plot (only used when plotting
+    plot_title (str): title of the plot (only used when plotting
         disaggregated disjoint data).
-    aggregated (bool, optional): a boolean indicating whether the population
-        data aggregated or not. Default is True.
-    joint (bool, optional): a boolean indicating whether a joint plot should be
+    aggregated (bool, optional): boolean indicating whether the population
+        data aggregated or not. Default to True.
+    joint (bool, optional): boolean indicating whether a joint plot should be
         created. This parameter is only used if aggregated is False.
-        Default is False.
-    cmap_name (str, optional): the name of the color map to be used for the
-        plot. Default is "viridis".
+        Default to False.
+    cmap_name (str, optional): name of the color map to be used for the
+        plot. Default to "viridis".
 
     Returns
     -------
-    fig (plotly.graph_objs.Figure): a plotly figure object containing the plot.
+    fig (plotly.graph_objs.Figure): plotly figure object containing the plot.
 
     """
     if aggregated:
@@ -178,18 +178,18 @@ def plot_pop_data_aggregated(
     Plot aggregated population data on a bar chart.
 
     Inputs
-    ----------
-    gdf (geopandas.GeoDataFrame): a GeoDataFrame object containing geographic
+    -------
+    gdf (geopandas.GeoDataFrame): GeoDataFrame object containing geographic
         data.
-    col_label (str): the column in the GeoDataFrame that contains the labels
+    col_label (str): column in the GeoDataFrame that contains the labels
         for plotting.
-    label_title (str): the label of the y-axis.
-    cmap_name (str, optional): the name of the color map to be used for the
-        plot. Default is "viridis".
+    label_title (str): label for the y-axis.
+    cmap_name (str, optional): name of the color map to be used for the
+        plot. Default to "viridis".
 
     Returns
     -------
-    fig (plotly.graph_objs.Figure): a plotly figure object containing the plot.
+    fig (plotly.graph_objs.Figure): plotly figure object containing the plot.
 
     """
     y = gdf[col_label].tolist()
@@ -235,22 +235,22 @@ def plot_pop_data_disaggregated(
     Plot disaggregated population data on a bar chart.
 
     Inputs
-    ----------
-    gdf (geopandas.GeoDataFrame): a GeoDataFrame object containing geographic
+    -------
+    gdf (geopandas.GeoDataFrame): GeoDataFrame object containing geographic
         data.
-    col_label (str): the column in the GeoDataFrame that contains the labels
+    col_label (str): column in the GeoDataFrame that contains the labels
         for plotting.
-    legend_title (str): the title of the legend for the plot.
-    plot_title (str): the title of the plot (only used when plotting
+    legend_title (str): title of the legend for the plot.
+    plot_title (str): title of the plot (only used when plotting
         disaggregated disjoint data).
-    joint (bool, optional): a boolean indicating whether a joint plot should be
-        created. Default is False.
-    cmap_name (str, optional): the name of the color map to be used for the
-        plot. Default is "viridis".
+    joint (bool, optional): boolean indicating whether a joint plot should be
+        created. Default to False.
+    cmap_name (str, optional): name of the color map to be used for the
+        plot. Default to "viridis".
 
     Returns
     -------
-    fig (plotly.graph_objs.Figure): a plotly figure object containing the plot.
+    fig (plotly.graph_objs.Figure): plotly figure object containing the plot.
 
     """
     if joint:
@@ -277,16 +277,16 @@ def plot_pop_data_split(
     One plot per gender/age will be visualised.
 
     Inputs
-    ----------
-    gdf (geopandas.GeoDataFrame): a GeoDataFrame object containing geographic
+    -------
+    gdf (geopandas.GeoDataFrame): GeoDataFrame object containing geographic
         data.
-    col_label (str): the column in the GeoDataFrame that contains the labels
+    col_label (str): column in the GeoDataFrame that contains the labels
         for plotting.
-    plot_title (str): the title of the plot.
+    plot_title (str): title of the plot.
 
     Returns
     -------
-    fig (plotly.graph_objs.Figure): a plotly figure object containing the plot.
+    fig (plotly.graph_objs.Figure): plotly figure object containing the plot.
 
     """
     data_pop = gdf[[col for col in gdf.columns if "pop_m" in col]].values
@@ -394,18 +394,18 @@ def plot_pop_data_joint(
     Plot disaggregated stacked population data on a bar chart.
 
     Inputs
-    ----------
-    gdf (geopandas.GeoDataFrame): a GeoDataFrame object containing geographic
+    -------
+    gdf (geopandas.GeoDataFrame): GeoDataFrame object containing geographic
         data.
-    col_label (str): the column in the GeoDataFrame that contains the labels
+    col_label (str): column in the GeoDataFrame that contains the labels
         for plotting.
-    legend_title (str): the title of the legend for the plot.
-    cmap_name (str, optional): the name of the color map to be used for the
-        plot. Default is "viridis".
+    legend_title (str): title of the legend for the plot.
+    cmap_name (str, optional): name of the color map to be used for the
+        plot. Default to "viridis".
 
     Returns
     -------
-    fig (plotly.graph_objs.Figure): a plotly figure object containing the plot.
+    fig (plotly.graph_objs.Figure): plotly figure object containing the plot.
 
     """
     y = [int(col[-2:]) for col in gdf.columns if "pop_m" in col]

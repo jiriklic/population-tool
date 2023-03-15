@@ -7,14 +7,50 @@ import streamlit as st
 from src.config_parameters import params
 
 
+def elapsed_time_string(elapsed: float, text: str = "Elapsed time:") -> str:
+    """
+    Reformat elapsed time into a sentence.
+
+    Inputs:
+    -------
+    elapsed (float): elapsed time in seconds.
+    text (str): sentence to be added to the formatted time. Default to
+        'Elapsed time:'.
+
+    Returns:
+    --------
+    sentence (str): sentence containing the elapsed time, in days, hours,
+        minutes and seconds.
+    """
+    m, s = divmod(elapsed, 60)
+    h, m = divmod(m, 60)
+    d, h = divmod(h, 24)
+
+    elaps_str = f"{s}s"
+    if any([t != 0 for t in [m, h, d]]):
+        elaps_str = f"{m}m {elaps_str}"
+    if any([t != 0 for t in [h, d]]):
+        elaps_str = f"{h}h {elaps_str}"
+    if d != 0:
+        elaps_str = f"{d}d {elaps_str}"
+
+    return f"{text} {elaps_str}"
+
+
 # Check if app is deployed
-def is_app_on_streamlit():
-    """Check whether the app is on streamlit or runs locally."""
+def is_app_on_streamlit() -> bool:
+    """
+    Check whether the app is on streamlit or runs locally.
+
+    Returns:
+    --------
+    (bool): True if the app is run on Streamlit cloud, False otherwise.
+    """
     return "HOSTNAME" in os.environ and os.environ["HOSTNAME"] == "streamlit"
 
 
 # General layout
-def toggle_menu_button():
+def toggle_menu_button() -> None:
     """If app is on streamlit, hide menu button."""
     if is_app_on_streamlit():
         st.markdown(
@@ -29,7 +65,7 @@ def toggle_menu_button():
 
 
 # Home page
-def set_home_page_style():
+def set_home_page_style() -> None:
     """Set style home page."""
     st.markdown(
         """
@@ -41,7 +77,7 @@ def set_home_page_style():
 
 
 # Documentation page
-def set_doc_page_style():
+def set_doc_page_style() -> None:
     """Set style documentation page."""
     st.markdown(
         """
@@ -53,7 +89,7 @@ def set_doc_page_style():
 
 
 # Tool page
-def set_tool_page_style():
+def set_tool_page_style() -> None:
     """Set style tool page."""
     st.markdown(
         """
@@ -93,35 +129,37 @@ def set_tool_page_style():
 
 # Sidebar
 # @st.cache_data()
-def get_base64_of_bin_file(png_file):
+def get_base64_of_bin_file(png_file: str) -> str:
     """
     Get base64 from image file.
 
-    Inputs:
-        png_file (str): image filename
+    Inputs
+    -------
+    png_file (str): image filename
 
-    Returns:
-        str: encoded ASCII file
+    Returns
+    -------
+    str: encoded ASCII file
     """
     with open(png_file, "rb") as f:
         data = f.read()
     return base64.b64encode(data).decode()
 
 
-def build_markup_for_logo(
-    png_file,
-):
+def build_markup_for_logo(png_file: str) -> str:
     """
     Create full string for navigation bar, including logo and title.
 
     Inputs:
-        png_file (str): image filename
-        background_position (str): position logo
-        image_width (str): width logo
-        image_height (str): height logo
+    -------
+    png_file (str): image filename
+    background_position (str): position logo
+    image_width (str): width logo
+    image_height (str): height logo
 
     Returns
-        str: full string with logo and title for sidebar
+    -------
+    (str): full string with logo and title for sidebar
     """
     binary_string = get_base64_of_bin_file(png_file)
     return """
@@ -157,14 +195,13 @@ def build_markup_for_logo(
     )
 
 
-def add_logo(png_file):
+def add_logo(png_file: str) -> None:
     """
     Add logo to sidebar.
 
     Inputs:
-        png_file (str): image filename
-    Returns:
-        None
+    -------
+    png_file (str): image filename
     """
     logo_markup = build_markup_for_logo(png_file)
     # st.sidebar.title("ciao")
@@ -174,15 +211,8 @@ def add_logo(png_file):
     )
 
 
-def add_about():
-    """
-    Add about and contacts to sidebar.
-
-    Inputs:
-        None
-    Returns:
-        None
-    """
+def add_about() -> None:
+    """Add about and contacts to sidebar."""
     today = date.today().strftime("%B %d, %Y")
 
     # About textbox
