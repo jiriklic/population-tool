@@ -22,7 +22,7 @@ def elapsed_time_string(elapsed: float, text: str = "Elapsed time:") -> str:
     sentence (str): sentence containing the elapsed time, in days, hours,
         minutes and seconds.
     """
-    m, s = divmod(elapsed, 60)
+    m, s = divmod(int(elapsed), 60)
     h, m = divmod(m, 60)
     d, h = divmod(h, 24)
 

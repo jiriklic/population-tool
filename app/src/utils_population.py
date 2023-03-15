@@ -1,5 +1,6 @@
 """Functions for population data."""
 import os
+import time
 import urllib.request
 from ftplib import FTP
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -15,6 +16,8 @@ from rasterio.features import shapes
 from rasterstats import zonal_stats
 from shapely.geometry import shape
 from shapely.ops import unary_union
+from src.utils_plotting import display_polygons_on_map
+from streamlit_folium import folium_static
 
 
 def mock_st_text(text: str, verbose: bool, text_on_streamlit: bool) -> None:
@@ -41,6 +44,53 @@ def mock_st_text(text: str, verbose: bool, text_on_streamlit: bool) -> None:
         st.write(text)
     else:
         print(text)
+
+
+def visualize_data(
+    gdf: gpd.GeoDataFrame,
+    add_map: bool = False,
+    progress_bar: bool = True,
+) -> None:
+    """
+    Visualize data with a table and, optionally, a map.
+
+    Inputs
+    -------
+    gdf (geopandas.GeoDataFrame): GeoDataFrame containing the data.
+    add_map (bool, optional): if True, add a folium Map showing the polygons.
+    progress_bar (bool, optional): if True, visualize a progress bar.
+
+    Returns
+    -------
+    gdf (geopandas.GeoDataFrame): GeoDataFrame.
+    error (str, optional): error string if error was generated, otherwise None.
+    """
+    if progress_bar:
+        st.markdown("### ")
+        placeholder = st.empty()
+        progress_text_base = "Operation in progress. Please wait. "
+        progress_text = "Loading data..."
+        my_bar = placeholder.progress(
+            0, text=progress_text_base + progress_text
+        )
+
+    st.dataframe(gdf.to_wkt())
+
+    if add_map:
+        if progress_bar:
+            progress_text = "Creating map..."
+            my_bar.progress(0.5, text=progress_text_base + progress_text)
+
+        Map = display_polygons_on_map(gdf, add_countryborders=False)
+        folium_static(Map)
+
+    if progress_bar:
+        my_bar.progress(1.0, text=" ")
+        time.sleep(2)
+        placeholder.empty()
+
+
+st.cache_resource
 
 
 def load_gdf(gdf_file: str) -> Tuple[gpd.GeoDataFrame, Optional[str]]:
@@ -243,7 +293,7 @@ def retrieve_country_borders_wp(
 def download_worldpop_iso_tif(
     iso3: str,
     tif_folder: str,
-    method: str = "ftp",
+    method: str = "http",
     year: int = 2020,
     data_type: str = "UNadj_constrained",
     aggregated: bool = True,
@@ -253,7 +303,7 @@ def download_worldpop_iso_tif(
     step_size: float = 0.0,
     my_bar: Optional[Any] = None,
     progress_text: Optional[str] = None,
-) -> Tuple[List[str], List[str]]:
+) -> Tuple[List[str], List[str], float]:
     """
     Download WorldPop raster data for given parameters.
 
@@ -287,6 +337,8 @@ def download_worldpop_iso_tif(
         population data for the given parameters.
     label_list (list): list of labels for dataframe columns. If the population
         data is disaggregated, each label indicates gender and age.
+    step_progression (float): number that indicates the update progression
+        of the computation. Values between 0 and 1.
     """
     allowed_method = ["http", "ftp"]
     if method not in allowed_method:
@@ -338,7 +390,7 @@ def download_worldpop_iso3_tif_http(
     step_size: float = 0.0,
     my_bar: Any = st.progress(0),
     progress_text: Optional[str] = None,
-) -> Tuple[List[str], List[str]]:
+) -> Tuple[List[str], List[str], float]:
     """
     Download WorldPop raster data for given parameters, using the API via http.
 
@@ -371,6 +423,8 @@ def download_worldpop_iso3_tif_http(
         population data for the given parameters.
     label_list (list): list of labels for dataframe columns. If the population
         data is disaggregated, each label indicates gender and age.
+    step_progression (float): number that indicates the update progression
+        of the computation. Values between 0 and 1.
     """
     if aggregated:
         api_suffix_1 = "age_structures/"
@@ -443,14 +497,14 @@ def download_worldpop_iso3_tif_http(
 
         if progress_bar:
             step_progression += step_size
-            my_bar.progress(step_progression, text=progress_text)
+            my_bar.progress(round(step_progression, 1), text=progress_text)
 
     filename_list = [
         filename for _, filename in sorted(zip(label_list, filename_list))
     ]
     label_list.sort()
 
-    return filename_list, label_list
+    return filename_list, label_list, step_progression
 
 
 def download_worldpop_iso3_tif_ftp(
@@ -465,7 +519,7 @@ def download_worldpop_iso3_tif_ftp(
     step_size: float = 0.0,
     my_bar: Any = st.progress(0),
     progress_text: Optional[str] = None,
-) -> Tuple[List[str], List[str]]:
+) -> Tuple[List[str], List[str], float]:
     """
     Download WorldPop raster data for given parameters, using the ftp service.
 
@@ -498,6 +552,8 @@ def download_worldpop_iso3_tif_ftp(
         population data for the given parameters.
     label_list (list): list of labels for dataframe columns. If the population
         data is disaggregated, each label indicates gender and age.
+    step_progression (float): number that indicates the update progression
+        of the computation. Values between 0 and 1.
     """
     ftp = FTP("ftp.worldpop.org.uk")
     ftp.login()
@@ -569,7 +625,7 @@ def download_worldpop_iso3_tif_ftp(
 
         if progress_bar:
             step_progression += step_size
-            my_bar.progress(step_progression, text=progress_text)
+            my_bar.progress(round(step_progression, 1), text=progress_text)
 
     filename_list = [
         filename for _, filename in sorted(zip(label_list, filename_list))
@@ -578,7 +634,7 @@ def download_worldpop_iso3_tif_ftp(
 
     ftp.quit()
 
-    return filename_list, label_list
+    return filename_list, label_list, step_progression
 
 
 def aggregate_raster_on_geometries(
@@ -659,11 +715,10 @@ def add_population_data(
         additional 'total population' column containing the aggregated
         population data.
     """
-    if progress_bar:
-        progress_text = "Operation in progress. Please wait."
-    else:
-        progress_text = ""
-    my_bar = st.progress(0, text=progress_text)
+    progress_text_base = "Operation in progress. Please wait. "
+
+    progress_text = "Finding country intersections..."
+    my_bar = st.progress(0, text=progress_text_base + progress_text)
 
     gdf_with_pop = gdf.copy()
 
@@ -699,9 +754,13 @@ def add_population_data(
         else:
             number_of_steps = len(all_iso3_list) * 36
 
-        step_size = 0.8 / number_of_steps
         step_progression = 0.1
-        my_bar.progress(step_progression, text=progress_text)
+        step_size = 0.9 / number_of_steps
+        progress_text_raster = "Working with country rasters... "
+        my_bar.progress(
+            round(step_progression, 1),
+            text=progress_text_base + progress_text_raster,
+        )
     else:
         step_progression = 0.0
         step_size = 0.0
@@ -727,7 +786,12 @@ def add_population_data(
             text_on_streamlit=text_on_streamlit,
             text="Downloading raster...",
         )
-        raster_file_list, label_list = download_worldpop_iso_tif(
+        progress_text = progress_text_base + progress_text_raster + f" {iso3}"
+        (
+            raster_file_list,
+            label_list,
+            step_progression,
+        ) = download_worldpop_iso_tif(
             iso3,
             tif_folder=tif_folder,
             data_type=data_type,
@@ -740,12 +804,6 @@ def add_population_data(
             my_bar=my_bar,
             progress_text=progress_text,
         )
-
-        if progress_bar:
-            if aggregated:
-                step_progression += step_size
-            else:
-                step_progression += step_size * 36
 
         pop_partial_dict = {}
 
@@ -772,12 +830,6 @@ def add_population_data(
                         pop_total_dict[label][key] = value
                     else:
                         pop_total_dict[label][key] += value
-
-            if progress_bar:
-                new_step_size = 0.1 / number_of_steps
-                step_progression += new_step_size
-
-                my_bar.progress(round(step_progression, 1), text=progress_text)
 
     for label in label_list:
         gdf_with_pop[label] = [

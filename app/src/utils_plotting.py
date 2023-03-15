@@ -59,13 +59,13 @@ def display_polygons_on_map(
             )
 
     m = folium.Map(
-        location=[
-            gdf.geometry.centroid.y.mean(),
-            gdf.geometry.centroid.x.mean(),
-        ],
         zoom_start=10,
         control_scale=True,
     )
+
+    # restrict maps to boundaries geodataframe
+    bounds = gdf.total_bounds
+    m.fit_bounds([bounds[:2].tolist()[::-1], bounds[2:].tolist()[::-1]])
 
     # add country borders as a GeoJSON layer
     if add_countryborders:

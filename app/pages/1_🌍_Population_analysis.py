@@ -10,7 +10,7 @@ from src.utils import (
     toggle_menu_button,
 )
 from src.utils_plotting import plot_pop_data
-from src.utils_population import add_population_data, load_gdf
+from src.utils_population import add_population_data, load_gdf, visualize_data
 
 # Page configuration
 # st.set_page_config(layout="wide", page_title=params["browser_title"])
@@ -80,7 +80,11 @@ if st.session_state.stage > 0:
         st.error(error)
         st.stop()
 
-    st.dataframe(gdf.to_wkt())
+    # TODO: creating folium maps takes time, this should not be run every time
+    # st.cache does not work, as there are no outputs
+    # st.form does not work, as there are several buttons and callbacks in
+    # the app that are not compatible with it
+    visualize_data(gdf)
 
     options_default = ["unconstrained", "constrained", "UNadj_constrained"]
     if st.session_state.data_type not in options_default:
