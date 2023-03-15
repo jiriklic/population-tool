@@ -8,7 +8,7 @@ from src.utils import (
 )
 
 # Page configuration
-# st.set_page_config(layout="wide", page_title=params["browser_title"])
+# st.set_page_config(layout="wide", page_title=config["browser_title"])
 
 # If app is deployed hide menu button
 toggle_menu_button()

@@ -13,7 +13,7 @@ from src.utils_plotting import plot_pop_data
 from src.utils_population import add_population_data, load_gdf, visualize_data
 
 # Page configuration
-# st.set_page_config(layout="wide", page_title=params["browser_title"])
+# st.set_page_config(layout="wide", page_title=config["browser_title"])
 
 # If app is deployed hide menu button
 toggle_menu_button()

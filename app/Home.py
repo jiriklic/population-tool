@@ -1,6 +1,8 @@
 """Home page for Streamlit app."""
+import os
+
 import streamlit as st
-from src.config_parameters import params
+import yaml
 from src.utils import (
     add_about,
     add_logo,
@@ -8,8 +10,12 @@ from src.utils import (
     toggle_menu_button,
 )
 
+# Load configuration options
+config_path = os.path.join(os.path.dirname(__file__), "config", "config.yml")
+config = yaml.safe_load(open(config_path))
+
 # Page configuration
-st.set_page_config(layout="wide", page_title=params["browser_title"])
+st.set_page_config(layout="wide", page_title=config["browser_title"])
 
 # If app is deployed hide menu button
 toggle_menu_button()

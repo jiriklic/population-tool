@@ -4,7 +4,13 @@ import os
 from datetime import date
 
 import streamlit as st
-from src.config_parameters import params
+import yaml
+
+# Load configuration options
+config_path = os.path.join(
+    os.path.dirname(__file__), "../config", "config.yml"
+)
+config = yaml.safe_load(open(config_path))
 
 
 def elapsed_time_string(elapsed: float, text: str = "Elapsed time:") -> str:
@@ -71,7 +77,7 @@ def set_home_page_style() -> None:
         """
     <style> p { font-size: %s; } </style>
     """
-        % params["docs_fontsize"],
+        % config["docs_fontsize"],
         unsafe_allow_html=True,
     )
 
@@ -83,7 +89,7 @@ def set_doc_page_style() -> None:
         """
     <style> p { font-size: %s; } </style>
     """
-        % params["docs_fontsize"],
+        % config["docs_fontsize"],
         unsafe_allow_html=True,
     )
 
@@ -115,13 +121,13 @@ def set_tool_page_style() -> None:
             </style>
         """
         % (
-            params["expander_header_fontsize"],
-            params["widget_header_fontsize"],
-            params["widget_header_fontsize"],
-            params["widget_header_fontsize"],
-            params["button_text_fontsize"],
-            params["button_text_fontweight"],
-            params["button_background_color"],
+            config["expander_header_fontsize"],
+            config["widget_header_fontsize"],
+            config["widget_header_fontsize"],
+            config["widget_header_fontsize"],
+            config["button_text_fontsize"],
+            config["button_text_fontweight"],
+            config["button_background_color"],
         ),
         unsafe_allow_html=True,
     )
@@ -186,12 +192,12 @@ def build_markup_for_logo(png_file: str) -> str:
             </style>
             """ % (
         binary_string,
-        params["MA_logo_background_position"],
-        params["MA_logo_width"],
+        config["MA_logo_background_position"],
+        config["MA_logo_width"],
         "",
-        params["sidebar_header"],
-        params["sidebar_header_fontsize"],
-        params["sidebar_header_fontweight"],
+        config["sidebar_header"],
+        config["sidebar_header_fontsize"],
+        config["sidebar_header_fontweight"],
     )
 
 
@@ -247,11 +253,11 @@ def add_about() -> None:
         </div>
         """
         % (
-            params["about_box_background_color"],
+            config["about_box_background_color"],
             today,
-            params["url_project_wiki"],
-            params["url_github_repo"],
-            params["url_data_science_wiki"],
+            config["url_project_wiki"],
+            config["url_github_repo"],
+            config["url_data_science_wiki"],
         ),
         unsafe_allow_html=True,
     )
@@ -262,7 +268,7 @@ def add_about() -> None:
 
     # Add data scientists and emails
     contacts_text = ""
-    for ds, email in params["data_scientists"].items():
+    for ds, email in config["data_scientists"].items():
         contacts_text += ds + (
             "<span style='float:right; margin-right: 3px;'>"
             "<a href='mailto:%s'>%s</a></span><br>" % (email, email)
@@ -285,6 +291,6 @@ def add_about() -> None:
             </p>
         </div>
         """
-        % (params["about_box_background_color"], contacts_text),
+        % (config["about_box_background_color"], contacts_text),
         unsafe_allow_html=True,
     )
