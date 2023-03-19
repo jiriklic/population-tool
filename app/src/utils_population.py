@@ -1,4 +1,5 @@
 """Functions for population data."""
+import copy
 import os
 import time
 import urllib.request
@@ -6,6 +7,7 @@ from ftplib import FTP
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import country_converter as coco
+import ee
 import geopandas as gpd
 import rasterio
 import requests
@@ -44,6 +46,11 @@ def mock_st_text(text: str, verbose: bool, text_on_streamlit: bool) -> None:
         st.write(text)
     else:
         print(text)
+
+
+def _to_2d(x, y, z):
+    """Convert shapely.Point to 2d."""
+    return tuple(filter(None, [x, y]))
 
 
 def visualize_data(
@@ -95,7 +102,7 @@ st.cache_resource
 
 def load_gdf(gdf_file: str) -> Tuple[gpd.GeoDataFrame, Optional[str]]:
     """
-    Load GeoDataFrame, change crs and check validity.
+    Load GeoDataFrame, change crs, check validity, and make sure it is 2-d.
 
     Inputs
     -------
@@ -108,7 +115,7 @@ def load_gdf(gdf_file: str) -> Tuple[gpd.GeoDataFrame, Optional[str]]:
     """
     gdf = gpd.read_file(gdf_file)
     gdf.to_crs(CRS.from_user_input(4326), inplace=True)
-    if all(["Polygon" in geom for geom in gdf.geom_type.tolist()]):
+    if check_gdf_geometry(gdf):
         error = None
     else:
         error = (
@@ -116,7 +123,7 @@ def load_gdf(gdf_file: str) -> Tuple[gpd.GeoDataFrame, Optional[str]]:
             "download, or the dataframe contains geometries that are not "
             "polygons. Check the source data."
         )
-    return gdf, error
+    return convert_gdf_to_2d(gdf), error
 
 
 def check_gdf_geometry(gdf: gpd.GeoDataFrame) -> bool:
@@ -124,13 +131,39 @@ def check_gdf_geometry(gdf: gpd.GeoDataFrame) -> bool:
 
     Inputs
     -------
-    pgdf (geopandas.GeoDataFrame): GeoDataFrame with polygons.
+    gdf (geopandas.GeoDataFrame): GeoDataFrame with polygons.
 
     Returns
     -------
     (bool): True if all geometries are points, False otherwise.
     """
     return all(["Polygon" in geom for geom in gdf.geom_type.tolist()])
+
+
+def convert_gdf_to_2d(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    """
+    Make sure that all geometries in GeoDataFrame are 2-dimensional.
+
+    Inputs
+    -------
+    gdf (geopandas.GeoDataFrame): GeoDataFrame with polygons.
+
+    Returns
+    -------
+    gdf (geopandas.GeoDataFrame): GeoDataFrame with 2-d polygons.
+    """
+    geom_2d_list = []
+    for geom in gdf["geometry"].tolist():
+        if "Multi" in geom.geom_type:
+            coord_point = list(geom.geoms)[0].exterior.coords[0]
+        else:
+            coord_point = list(geom.exterior.coords)[0]
+        if len(coord_point) > 2:
+            geom_2d_list.append(shapely.ops.transform(_to_2d, geom))
+        else:
+            geom_2d_list.append(geom)
+
+    return gdf.set_geometry(geom_2d_list)
 
 
 def find_intersections_polygon(
@@ -665,7 +698,7 @@ def aggregate_raster_on_geometries(
     return zonal_stats(geometry_list, raster_file, stats=stats)
 
 
-def add_population_data(
+def add_population_data_from_wpAPI(
     gdf: gpd.GeoDataFrame,
     data_type: str = "UNadj_constrained",
     year: int = 2020,
@@ -708,12 +741,12 @@ def add_population_data(
         via the print statement. Only used when verbose is True.
         Default to True.
     progress_bar (bool, optional): if True, create a progress bar in Streamlit.
+        Default to False.
 
     Returns
     -------
-    gdf_with_pop (geopandas.GeoDataFrame): input GeoDataFrame with an
-        additional 'total population' column containing the aggregated
-        population data.
+    gdf_with_pop (geopandas.GeoDataFrame): input GeoDataFrame with additional
+        columns containing the (dis)aggregated population data.
     """
     progress_text_base = "Operation in progress. Please wait. "
 
@@ -786,7 +819,12 @@ def add_population_data(
             text_on_streamlit=text_on_streamlit,
             text="Downloading raster...",
         )
-        progress_text = progress_text_base + progress_text_raster + f" {iso3}"
+
+        if progress_bar:
+            progress_text = (
+                progress_text_base + progress_text_raster + f" {iso3}"
+            )
+
         (
             raster_file_list,
             label_list,
@@ -844,3 +882,249 @@ def add_population_data(
     )
 
     return gdf_with_pop
+
+
+def add_population_data_from_GEE(
+    gdf: gpd.GeoDataFrame,
+    data_type: str = "UNadj_constrained",
+    year: int = 2020,
+    aggregated: bool = True,
+    verbose: bool = False,
+    text_on_streamlit: bool = True,
+    progress_bar: bool = False,
+) -> gpd.GeoDataFrame:
+    """
+    Add population data to a GeoDataFrame using Google Earth Engine.
+
+    The function retrieves population data by clipping rasters retrieved from
+    Google Earth Engine. The GEE Python client must be initialised before
+    running this function.
+
+    Parameters
+    ----------
+    gdf (geopandas.GeoDataFram: GeoDataFrame containing the geometries for
+        which to add population data.
+    data_type (str, optional): type of population estimate.
+        ['unconstrained'| 'constrained' | 'UNadj_constrained']. Default to
+        'UNadj_constrained'.
+    year (int, optional): year of population data. Default to 2020.
+    aggregated (bool, optional): if False, download disaggregated data (by
+        gender and age), if True download only total population figure.
+        Default to True.
+    verbose (bool, optional): if True, print details run. Default to False.
+    text_on_streamlit (bool, optional): if True, print to streamlit, otherwise
+        via the print statement. Only used when verbose is True.
+        Default to True.
+    progress_bar (bool, optional): if True, create a progress bar in Streamlit.
+        Default to False.
+
+    Returns
+    -------
+    gdf_with_pop (geopandas.GeoDataFrame): input GeoDataFrame with additional
+        columns containing the (dis)aggregated population data.
+    """
+    progress_text_base = "Operation in progress. Please wait. "
+    progress_text = "Retrieving data from Google Earth Engine..."
+
+    if progress_bar:
+        my_bar = st.progress(0.1, text=progress_text_base + progress_text)
+
+    mock_st_text(
+        verbose=verbose,
+        text_on_streamlit=text_on_streamlit,
+        text=progress_text,
+    )
+
+    if data_type == "unconstrained" and aggregated:
+        pop_collection = ee.ImageCollection("WorldPop/GP/100m/pop")
+        initial_band = 0
+    elif data_type == "unconstrained" and not aggregated:
+        pop_collection = ee.ImageCollection("WorldPop/GP/100m/pop_age_sex")
+        initial_band = 1
+    elif data_type == "UNadj_constrained" and not aggregated:
+        pop_collection = ee.ImageCollection(
+            "WorldPop/GP/100m/pop_age_sex_cons_unadj"
+        )
+        initial_band = 1
+    else:
+        raise ValueError(
+            f"The combination data_type={data_type} and aggregated="
+            f"{aggregated} does not exist on Google Earth Engine."
+        )
+
+    pop_year = pop_collection.filterMetadata("year", "equals", year)
+    bands = pop_year.first().bandNames().getInfo()[initial_band:]
+
+    polygons_fc = ee.FeatureCollection(gdf.__geo_interface__)
+
+    # Each band corresponds to a gender-age category for disaggregated data,
+    # or to the total population for aggregated data
+    for i, band in enumerate(bands):
+        mock_st_text(
+            verbose=verbose,
+            text_on_streamlit=text_on_streamlit,
+            text=f"Band ({i+1}/{len(bands)}): {band}",
+        )
+
+        pop_band = pop_year.select(band)
+        pop_band_img = pop_band.mosaic()
+
+        scale = pop_band.first().projection().nominalScale().getInfo()
+
+        zonal_statistics = pop_band_img.reduceRegions(
+            reducer=ee.Reducer.sum(), collection=polygons_fc, scale=scale
+        )
+
+        if i == 0:
+            zonal_tot = copy.deepcopy(zonal_statistics)
+        else:
+            zonal_tot = zonal_tot.merge(zonal_statistics)
+
+    pop_data = zonal_tot.aggregate_array("sum").getInfo()
+
+    if aggregated:
+        label = "pop_tot"
+        pop_dict = {}
+        pop_dict[label] = pop_data
+    else:
+        # Divide population data in chuncks with length = len(gdf)
+        pop_data_dis = [
+            pop_data[i * len(gdf) : (i + 1) * len(gdf)]
+            for i in range((len(pop_data) + len(gdf) - 1) // len(gdf))
+        ]
+        labels = [
+            f'pop_{band.split("_")[0].lower()}_{band.split("_")[1].zfill(2)}'
+            for band in bands
+        ]
+        pop_dict = {
+            label: pop_data for (label, pop_data) in zip(labels, pop_data_dis)
+        }
+
+    pop_dict = dict(sorted(pop_dict.items()))
+
+    gdf_with_pop = gdf.copy()
+
+    for label, pop_data in pop_dict.items():
+        gdf_with_pop[label] = [int(pop) for pop in pop_data]
+
+    if progress_bar:
+        my_bar.progress(1.0, text=" ")
+
+    mock_st_text(
+        verbose=verbose, text_on_streamlit=text_on_streamlit, text="Done!"
+    )
+
+    return gdf_with_pop
+
+
+def add_population_data(
+    gdf: gpd.GeoDataFrame,
+    data_type: str = "UNadj_constrained",
+    year: int = 2020,
+    aggregated: bool = True,
+    data_folder: str = "app/data",
+    tif_folder: str = "app/test_data/pop_data",
+    clobber: bool = False,
+    verbose: bool = False,
+    text_on_streamlit: bool = True,
+    progress_bar: bool = False,
+    force_from_wpAPI: bool = False,
+    force_from_GEE: bool = False,
+) -> gpd.GeoDataFrame:
+    """
+    Add population data to a GeoDataFrame.
+
+    Depending on the parameters, the function will use the WorldPop API or
+    Google Earth Engine to retrieve population data, unless the user forces
+    the download from one of the two sources.
+
+    Parameters
+    ----------
+    gdf (geopandas.GeoDataFram: GeoDataFrame containing the geometries for
+        which to add population data.
+    data_type (str, optional): type of population estimate.
+        ['unconstrained'| 'constrained' | 'UNadj_constrained']. Default to
+        'UNadj_constrained'.
+    year (int, optional): year of population data. Default to 2020.
+    aggregated (bool, optional): if False, download disaggregated data (by
+        gender and age), if True download only total population figure.
+        Default to True.
+    data_folder (str, optional): folder where auxiliary data was saved (such
+        as country borders).
+    tif_folder (str, optional): folder where the population raster data is
+        saved.
+    clobber (bool, optional): if True, overwrite data, if False do not
+        download data if already present in the folder. Default to False.
+    verbose (bool, optional): if True, print details run. Default to False.
+    text_on_streamlit (bool, optional): if True, print to streamlit, otherwise
+        via the print statement. Only used when verbose is True.
+        Default to True.
+    progress_bar (bool, optional): if True, create a progress bar in Streamlit.
+        Default to False.
+    force_from_wpAPI (bool, optional): if True, use the WorldPop API regardless
+        of the parameters. Default to False.
+    force_from_GEE (bool, optional): if True, use Google Earth Engine
+        regardless of the parameters. Default to False.
+
+    Returns
+    -------
+    gdf_with_pop (geopandas.GeoDataFrame): input GeoDataFrame with additional
+        columns containing the (dis)aggregated population data.
+    """
+    if force_from_wpAPI and force_from_GEE:
+        raise ValueError("You cannot force the download from both sources!")
+
+    if force_from_wpAPI:
+        return add_population_data_from_wpAPI(
+            gdf=gdf,
+            data_type=data_type,
+            year=year,
+            aggregated=aggregated,
+            data_folder=data_folder,
+            tif_folder=tif_folder,
+            clobber=clobber,
+            verbose=verbose,
+            text_on_streamlit=text_on_streamlit,
+            progress_bar=progress_bar,
+        )
+
+    elif force_from_GEE:
+        return add_population_data_from_GEE(
+            gdf=gdf,
+            data_type=data_type,
+            year=year,
+            aggregated=aggregated,
+            verbose=verbose,
+            text_on_streamlit=text_on_streamlit,
+            progress_bar=progress_bar,
+        )
+
+    else:
+        if (
+            (data_type == "unconstrained" and aggregated)
+            or (data_type == "unconstrained" and not aggregated)
+            or (data_type == "UNadj_constrained" and not aggregated)
+        ):
+            return add_population_data_from_GEE(
+                gdf=gdf,
+                data_type=data_type,
+                year=year,
+                aggregated=aggregated,
+                verbose=verbose,
+                text_on_streamlit=text_on_streamlit,
+                progress_bar=progress_bar,
+            )
+
+        else:
+            return add_population_data_from_wpAPI(
+                gdf=gdf,
+                data_type=data_type,
+                year=year,
+                aggregated=aggregated,
+                data_folder=data_folder,
+                tif_folder=tif_folder,
+                clobber=clobber,
+                verbose=verbose,
+                text_on_streamlit=text_on_streamlit,
+                progress_bar=progress_bar,
+            )

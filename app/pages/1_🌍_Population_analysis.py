@@ -9,6 +9,7 @@ from src.utils import (
     set_tool_page_style,
     toggle_menu_button,
 )
+from src.utils_ee import ee_initialize
 from src.utils_plotting import plot_pop_data
 from src.utils_population import add_population_data, load_gdf, visualize_data
 
@@ -27,6 +28,9 @@ st.markdown("# Population analysis")
 
 # Set page style
 set_tool_page_style()
+
+# Initialise Google Earth Engine
+ee_initialize()
 
 # Parameters
 verbose = True
