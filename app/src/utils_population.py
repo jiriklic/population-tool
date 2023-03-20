@@ -1,20 +1,28 @@
 """Functions for population data."""
+import copy
 import os
+import tempfile
+import time
 import urllib.request
 from ftplib import FTP
 from typing import Any, Dict, List, Optional, Tuple, Union
+from zipfile import ZipFile
 
 import country_converter as coco
+import ee
 import geopandas as gpd
-import numpy as np
 import rasterio
 import requests
 import shapely
 import streamlit as st
+import streamlit_ext as ste
+from pyproj import CRS
 from rasterio.features import shapes
 from rasterstats import zonal_stats
 from shapely.geometry import shape
 from shapely.ops import unary_union
+from src.utils_plotting import display_polygons_on_map
+from streamlit_folium import folium_static
 
 
 def mock_st_text(text: str, verbose: bool, text_on_streamlit: bool) -> None:
@@ -25,7 +33,7 @@ def mock_st_text(text: str, verbose: bool, text_on_streamlit: bool) -> None:
     or in jupyter notebook.
 
     Inputs
-    ----------
+    -------
     text (str): text to display.
     verbose (bool): if True, print details run.
     text_on_streamlit (str): if True, print text in the Streamlit app
@@ -43,18 +51,122 @@ def mock_st_text(text: str, verbose: bool, text_on_streamlit: bool) -> None:
         print(text)
 
 
+def _to_2d(x, y, z):
+    """Convert shapely.Point to 2d."""
+    return tuple(filter(None, [x, y]))
+
+
+def visualize_data(
+    gdf: gpd.GeoDataFrame,
+    add_map: bool = False,
+    progress_bar: bool = True,
+) -> None:
+    """
+    Visualize data with a table and, optionally, a map.
+
+    Inputs
+    -------
+    gdf (geopandas.GeoDataFrame): GeoDataFrame containing the data.
+    add_map (bool, optional): if True, add a folium Map showing the polygons.
+    progress_bar (bool, optional): if True, visualize a progress bar.
+
+    Returns
+    -------
+    gdf (geopandas.GeoDataFrame): GeoDataFrame.
+    error (str, optional): error string if error was generated, otherwise None.
+    """
+    if progress_bar:
+        st.markdown("### ")
+        placeholder = st.empty()
+        progress_text_base = "Operation in progress. Please wait. "
+        progress_text = "Loading data..."
+        my_bar = placeholder.progress(
+            0, text=progress_text_base + progress_text
+        )
+
+    st.dataframe(gdf.to_wkt())
+
+    if add_map:
+        if progress_bar:
+            progress_text = "Creating map..."
+            my_bar.progress(0.5, text=progress_text_base + progress_text)
+
+        Map = display_polygons_on_map(gdf, add_countryborders=False)
+        folium_static(Map)
+
+    if progress_bar:
+        my_bar.progress(1.0, text=" ")
+        time.sleep(2)
+        placeholder.empty()
+
+
+st.cache_resource
+
+
+def load_gdf(gdf_file: str) -> Tuple[gpd.GeoDataFrame, Optional[str]]:
+    """
+    Load GeoDataFrame, change crs, check validity, and make sure it is 2-d.
+
+    Inputs
+    -------
+    gdf_file (str): filename of the geopandas.GeoDataFrame.
+
+    Returns
+    -------
+    gdf (geopandas.GeoDataFrame): GeoDataFrame.
+    error (str, optional): error string if error was generated, otherwise None.
+    """
+    gdf = gpd.read_file(gdf_file)
+    gdf.to_crs(CRS.from_user_input(4326), inplace=True)
+    if check_gdf_geometry(gdf):
+        error = None
+    else:
+        error = (
+            "Error with the shapefile. Either there were problems with the "
+            "download, or the dataframe contains geometries that are not "
+            "polygons. Check the source data."
+        )
+    return convert_gdf_to_2d(gdf), error
+
+
 def check_gdf_geometry(gdf: gpd.GeoDataFrame) -> bool:
     """Check whether all geometries are polygons or multipolygons.
 
     Inputs
-    ----------
-    pgdf (geopandas.GeoDataFrame): GeoDataFrame with polygons.
+    -------
+    gdf (geopandas.GeoDataFrame): GeoDataFrame with polygons.
 
     Returns
     -------
     (bool): True if all geometries are points, False otherwise.
     """
     return all(["Polygon" in geom for geom in gdf.geom_type.tolist()])
+
+
+def convert_gdf_to_2d(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    """
+    Make sure that all geometries in GeoDataFrame are 2-dimensional.
+
+    Inputs
+    -------
+    gdf (geopandas.GeoDataFrame): GeoDataFrame with polygons.
+
+    Returns
+    -------
+    gdf (geopandas.GeoDataFrame): GeoDataFrame with 2-d polygons.
+    """
+    geom_2d_list = []
+    for geom in gdf["geometry"].tolist():
+        if "Multi" in geom.geom_type:
+            coord_point = list(geom.geoms)[0].exterior.coords[0]
+        else:
+            coord_point = list(geom.exterior.coords)[0]
+        if len(coord_point) > 2:
+            geom_2d_list.append(shapely.ops.transform(_to_2d, geom))
+        else:
+            geom_2d_list.append(geom)
+
+    return gdf.set_geometry(geom_2d_list)
 
 
 def find_intersections_polygon(
@@ -65,7 +177,7 @@ def find_intersections_polygon(
     Find the intersections between a Polygon object and country borders.
 
     Inputs
-    ----------
+    -------
     pol (shapely.Polygon): shapely Polygon object.
     world_gdf (geopandas.GeoDataFrame): Geodataframe containing polygons of
         world countries.
@@ -105,7 +217,7 @@ def find_intersections_gdf(
     Country borders are retrieved from WorldPop (1km resolution).
 
     Inputs
-    ----------
+    -------
     gdf (geopandas.GeoDataFrame): GeoDataFrame containing Polygon geometries.
     data_folder (str, optional): folder where auxiliary data was saved (such
         as country borders).
@@ -154,7 +266,7 @@ def retrieve_country_borders_wp(
     columns.
 
     Inputs
-    ----------
+    -------
     tif_folder (str, optional): folder where the world borders raster data is
         saved.
 
@@ -181,6 +293,8 @@ def retrieve_country_borders_wp(
         gdf = gpd.GeoDataFrame(
             dict(zip(["geometry", "value"], zip(*shape_gen))), crs=src.crs
         )
+
+        del data
 
     cc = coco.CountryConverter()
 
@@ -225,7 +339,7 @@ def download_worldpop_iso_tif(
     step_size: float = 0.0,
     my_bar: Optional[Any] = None,
     progress_text: Optional[str] = None,
-) -> Tuple[List[str], List[str]]:
+) -> Tuple[List[str], List[str], float]:
     """
     Download WorldPop raster data for given parameters.
 
@@ -254,11 +368,13 @@ def download_worldpop_iso_tif(
         Default to None.
 
     Returns:
-    --------
+    -------
     filename_list (list): list of filenames of the GeoTIFF files containing the
         population data for the given parameters.
     label_list (list): list of labels for dataframe columns. If the population
         data is disaggregated, each label indicates gender and age.
+    step_progression (float): number that indicates the update progression
+        of the computation. Values between 0 and 1.
     """
     allowed_method = ["http", "ftp"]
     if method not in allowed_method:
@@ -310,7 +426,7 @@ def download_worldpop_iso3_tif_http(
     step_size: float = 0.0,
     my_bar: Any = st.progress(0),
     progress_text: Optional[str] = None,
-) -> Tuple[List[str], List[str]]:
+) -> Tuple[List[str], List[str], float]:
     """
     Download WorldPop raster data for given parameters, using the API via http.
 
@@ -338,11 +454,13 @@ def download_worldpop_iso3_tif_http(
         Default to None.
 
     Returns:
-    --------
+    -------
     filename_list (list): list of filenames of the GeoTIFF files containing the
         population data for the given parameters.
     label_list (list): list of labels for dataframe columns. If the population
         data is disaggregated, each label indicates gender and age.
+    step_progression (float): number that indicates the update progression
+        of the computation. Values between 0 and 1.
     """
     if aggregated:
         api_suffix_1 = "age_structures/"
@@ -415,14 +533,14 @@ def download_worldpop_iso3_tif_http(
 
         if progress_bar:
             step_progression += step_size
-            my_bar.progress(step_progression, text=progress_text)
+            my_bar.progress(round(step_progression, 1), text=progress_text)
 
     filename_list = [
         filename for _, filename in sorted(zip(label_list, filename_list))
     ]
     label_list.sort()
 
-    return filename_list, label_list
+    return filename_list, label_list, step_progression
 
 
 def download_worldpop_iso3_tif_ftp(
@@ -437,7 +555,7 @@ def download_worldpop_iso3_tif_ftp(
     step_size: float = 0.0,
     my_bar: Any = st.progress(0),
     progress_text: Optional[str] = None,
-) -> Tuple[List[str], List[str]]:
+) -> Tuple[List[str], List[str], float]:
     """
     Download WorldPop raster data for given parameters, using the ftp service.
 
@@ -465,11 +583,13 @@ def download_worldpop_iso3_tif_ftp(
         Default to None.
 
     Returns:
-    --------
+    -------
     filename_list (list): list of filenames of the GeoTIFF files containing the
         population data for the given parameters.
     label_list (list): list of labels for dataframe columns. If the population
         data is disaggregated, each label indicates gender and age.
+    step_progression (float): number that indicates the update progression
+        of the computation. Values between 0 and 1.
     """
     ftp = FTP("ftp.worldpop.org.uk")
     ftp.login()
@@ -541,7 +661,7 @@ def download_worldpop_iso3_tif_ftp(
 
         if progress_bar:
             step_progression += step_size
-            my_bar.progress(step_progression, text=progress_text)
+            my_bar.progress(round(step_progression, 1), text=progress_text)
 
     filename_list = [
         filename for _, filename in sorted(zip(label_list, filename_list))
@@ -550,58 +670,38 @@ def download_worldpop_iso3_tif_ftp(
 
     ftp.quit()
 
-    return filename_list, label_list
+    return filename_list, label_list, step_progression
 
 
 def aggregate_raster_on_geometries(
     raster_file: str,
-    raster_dict: dict,
     geometry_list: List[shapely.Geometry],
     stats: Union[str, List[str]] = "sum",
-) -> Tuple[List, dict]:
+) -> List:
     """
     Compute zonal statistics of a raster file over a list of vector geometries.
 
     Inputs:
     -------
     raster_file (str): filepath or url to the input raster file.
-    raster_dict (dict): dictionary containing raster filepaths as keys and
-        arrays and affine transformed rasters as values. If raster_file is
-        already listed in raster_dict, there is no need to recalculate array
-        and affine transformed raster.
     geometry_list (list): list of shapely geometries (e.g. polygons) over which
         to compute the zonal statistics.
-    stats (str or list, optional): One or more statistics to compute for each
+    stats (str or list, optional): one or more statistics to compute for each
         geometry, such as 'mean', 'sum', 'min', 'max', 'std', etc. Default to
         'sum'.
 
     Returns:
-    --------
-    stats_list (list): List of zonal statistics computed for each input
+    -------
+    stats_list (list): list of zonal statistics computed for each input
         geometry, in the same order as the input list. Each item in the list is
         a dictionary containing the zonal statistics for a single geometry,
         with keys like 'sum', 'mean', etc. depending on the input 'stats'
         parameter.
-    raster_dict (dict): new raster_dict, which contains data about raster_file.
     """
-    if raster_file in raster_dict.keys():
-        array = raster_dict[raster_file]["array"]
-        affine = raster_dict[raster_file]["affine"]
-    else:
-        raster = rasterio.open(raster_file, nodata=0.0)
-        affine = raster.transform
-        array = raster.read(1)
-        array = array.astype(float)
-        array[array < 0] = np.nan
-        raster_dict[raster_file] = {"array": array, "affine": affine}
-
-    return (
-        zonal_stats(geometry_list, array, affine=affine, stats=stats),
-        raster_dict,
-    )
+    return zonal_stats(geometry_list, raster_file, stats=stats)
 
 
-def add_population_data(
+def add_population_data_from_wpAPI(
     gdf: gpd.GeoDataFrame,
     data_type: str = "UNadj_constrained",
     year: int = 2020,
@@ -644,18 +744,17 @@ def add_population_data(
         via the print statement. Only used when verbose is True.
         Default to True.
     progress_bar (bool, optional): if True, create a progress bar in Streamlit.
+        Default to False.
 
     Returns
     -------
-    gdf_with_pop (geopandas.GeoDataFrame): input GeoDataFrame with an
-        additional 'total population' column containing the aggregated
-        population data.
+    gdf_with_pop (geopandas.GeoDataFrame): input GeoDataFrame with additional
+        columns containing the (dis)aggregated population data.
     """
-    if progress_bar:
-        progress_text = "Operation in progress. Please wait."
-    else:
-        progress_text = ""
-    my_bar = st.progress(0, text=progress_text)
+    progress_text_base = "Operation in progress. Please wait. "
+
+    progress_text = "Finding country intersections..."
+    my_bar = st.progress(0, text=progress_text_base + progress_text)
 
     gdf_with_pop = gdf.copy()
 
@@ -691,14 +790,16 @@ def add_population_data(
         else:
             number_of_steps = len(all_iso3_list) * 36
 
-        step_size = 0.8 / number_of_steps
         step_progression = 0.1
-        my_bar.progress(step_progression, text=progress_text)
+        step_size = 0.9 / number_of_steps
+        progress_text_raster = "Working with country rasters... "
+        my_bar.progress(
+            round(step_progression, 1),
+            text=progress_text_base + progress_text_raster,
+        )
     else:
         step_progression = 0.0
         step_size = 0.0
-
-    raster_dict = {}  # type: dict
 
     for i in range(len(all_iso3_list)):
         iso3 = all_iso3_list[i]
@@ -721,7 +822,17 @@ def add_population_data(
             text_on_streamlit=text_on_streamlit,
             text="Downloading raster...",
         )
-        raster_file_list, label_list = download_worldpop_iso_tif(
+
+        if progress_bar:
+            progress_text = (
+                progress_text_base + progress_text_raster + f" {iso3}"
+            )
+
+        (
+            raster_file_list,
+            label_list,
+            step_progression,
+        ) = download_worldpop_iso_tif(
             iso3,
             tif_folder=tif_folder,
             data_type=data_type,
@@ -735,12 +846,6 @@ def add_population_data(
             progress_text=progress_text,
         )
 
-        if progress_bar:
-            if aggregated:
-                step_progression += step_size
-            else:
-                step_progression += step_size * 36
-
         pop_partial_dict = {}
 
         mock_st_text(
@@ -752,10 +857,9 @@ def add_population_data(
             if i == 0:
                 pop_total_dict[label] = {}
 
-            pop_iso3_agg, raster_dict = aggregate_raster_on_geometries(
+            pop_iso3_agg = aggregate_raster_on_geometries(
                 raster_file=raster_file,
                 geometry_list=iso3_list_geometries,
-                raster_dict=raster_dict,
             )
             pop_partial_dict[label] = dict(
                 zip(iso3_list_indexes, [pop["sum"] for pop in pop_iso3_agg])
@@ -767,12 +871,6 @@ def add_population_data(
                         pop_total_dict[label][key] = value
                     else:
                         pop_total_dict[label][key] += value
-
-            if progress_bar:
-                new_step_size = 0.1 / number_of_steps
-                step_progression += new_step_size
-
-                my_bar.progress(step_progression, text=progress_text)
 
     for label in label_list:
         gdf_with_pop[label] = [
@@ -787,3 +885,317 @@ def add_population_data(
     )
 
     return gdf_with_pop
+
+
+def add_population_data_from_GEE(
+    gdf: gpd.GeoDataFrame,
+    data_type: str = "UNadj_constrained",
+    year: int = 2020,
+    aggregated: bool = True,
+    verbose: bool = False,
+    text_on_streamlit: bool = True,
+    progress_bar: bool = False,
+) -> gpd.GeoDataFrame:
+    """
+    Add population data to a GeoDataFrame using Google Earth Engine.
+
+    The function retrieves population data by clipping rasters retrieved from
+    Google Earth Engine. The GEE Python client must be initialised before
+    running this function.
+
+    Parameters
+    ----------
+    gdf (geopandas.GeoDataFram: GeoDataFrame containing the geometries for
+        which to add population data.
+    data_type (str, optional): type of population estimate.
+        ['unconstrained'| 'constrained' | 'UNadj_constrained']. Default to
+        'UNadj_constrained'.
+    year (int, optional): year of population data. Default to 2020.
+    aggregated (bool, optional): if False, download disaggregated data (by
+        gender and age), if True download only total population figure.
+        Default to True.
+    verbose (bool, optional): if True, print details run. Default to False.
+    text_on_streamlit (bool, optional): if True, print to streamlit, otherwise
+        via the print statement. Only used when verbose is True.
+        Default to True.
+    progress_bar (bool, optional): if True, create a progress bar in Streamlit.
+        Default to False.
+
+    Returns
+    -------
+    gdf_with_pop (geopandas.GeoDataFrame): input GeoDataFrame with additional
+        columns containing the (dis)aggregated population data.
+    """
+    progress_text_base = "Operation in progress. Please wait. "
+    progress_text = "Retrieving data from Google Earth Engine..."
+
+    if progress_bar:
+        my_bar = st.progress(0.1, text=progress_text_base + progress_text)
+
+    mock_st_text(
+        verbose=verbose,
+        text_on_streamlit=text_on_streamlit,
+        text=progress_text,
+    )
+
+    if data_type == "unconstrained" and aggregated:
+        pop_collection = ee.ImageCollection("WorldPop/GP/100m/pop")
+        initial_band = 0
+    elif data_type == "unconstrained" and not aggregated:
+        pop_collection = ee.ImageCollection("WorldPop/GP/100m/pop_age_sex")
+        initial_band = 1
+    elif data_type == "UNadj_constrained" and not aggregated:
+        pop_collection = ee.ImageCollection(
+            "WorldPop/GP/100m/pop_age_sex_cons_unadj"
+        )
+        initial_band = 1
+    else:
+        raise ValueError(
+            f"The combination data_type={data_type} and aggregated="
+            f"{aggregated} does not exist on Google Earth Engine."
+        )
+
+    pop_year = pop_collection.filterMetadata("year", "equals", year)
+    bands = pop_year.first().bandNames().getInfo()[initial_band:]
+
+    polygons_fc = ee.FeatureCollection(gdf.__geo_interface__)
+
+    # Each band corresponds to a gender-age category for disaggregated data,
+    # or to the total population for aggregated data
+    for i, band in enumerate(bands):
+        mock_st_text(
+            verbose=verbose,
+            text_on_streamlit=text_on_streamlit,
+            text=f"Band ({i+1}/{len(bands)}): {band}",
+        )
+
+        pop_band = pop_year.select(band)
+        pop_band_img = pop_band.mosaic()
+
+        scale = pop_band.first().projection().nominalScale().getInfo()
+
+        zonal_statistics = pop_band_img.reduceRegions(
+            reducer=ee.Reducer.sum(), collection=polygons_fc, scale=scale
+        )
+
+        if i == 0:
+            zonal_tot = copy.deepcopy(zonal_statistics)
+        else:
+            zonal_tot = zonal_tot.merge(zonal_statistics)
+
+    pop_data = zonal_tot.aggregate_array("sum").getInfo()
+
+    if aggregated:
+        label = "pop_tot"
+        pop_dict = {}
+        pop_dict[label] = pop_data
+    else:
+        # Divide population data in chuncks with length = len(gdf)
+        pop_data_dis = [
+            pop_data[i * len(gdf) : (i + 1) * len(gdf)]
+            for i in range((len(pop_data) + len(gdf) - 1) // len(gdf))
+        ]
+        labels = [
+            f'pop_{band.split("_")[0].lower()}_{band.split("_")[1].zfill(2)}'
+            for band in bands
+        ]
+        pop_dict = {
+            label: pop_data for (label, pop_data) in zip(labels, pop_data_dis)
+        }
+
+    pop_dict = dict(sorted(pop_dict.items()))
+
+    gdf_with_pop = gdf.copy()
+
+    for label, pop_data in pop_dict.items():
+        gdf_with_pop[label] = [int(pop) for pop in pop_data]
+
+    if progress_bar:
+        my_bar.progress(1.0, text=" ")
+
+    mock_st_text(
+        verbose=verbose, text_on_streamlit=text_on_streamlit, text="Done!"
+    )
+
+    return gdf_with_pop
+
+
+def add_population_data(
+    gdf: gpd.GeoDataFrame,
+    data_type: str = "UNadj_constrained",
+    year: int = 2020,
+    aggregated: bool = True,
+    data_folder: str = "app/data",
+    tif_folder: str = "app/test_data/pop_data",
+    clobber: bool = False,
+    verbose: bool = False,
+    text_on_streamlit: bool = True,
+    progress_bar: bool = False,
+    force_from_wpAPI: bool = False,
+    force_from_GEE: bool = False,
+) -> gpd.GeoDataFrame:
+    """
+    Add population data to a GeoDataFrame.
+
+    Depending on the parameters, the function will use the WorldPop API or
+    Google Earth Engine to retrieve population data, unless the user forces
+    the download from one of the two sources.
+
+    Parameters
+    ----------
+    gdf (geopandas.GeoDataFram: GeoDataFrame containing the geometries for
+        which to add population data.
+    data_type (str, optional): type of population estimate.
+        ['unconstrained'| 'constrained' | 'UNadj_constrained']. Default to
+        'UNadj_constrained'.
+    year (int, optional): year of population data. Default to 2020.
+    aggregated (bool, optional): if False, download disaggregated data (by
+        gender and age), if True download only total population figure.
+        Default to True.
+    data_folder (str, optional): folder where auxiliary data was saved (such
+        as country borders).
+    tif_folder (str, optional): folder where the population raster data is
+        saved.
+    clobber (bool, optional): if True, overwrite data, if False do not
+        download data if already present in the folder. Default to False.
+    verbose (bool, optional): if True, print details run. Default to False.
+    text_on_streamlit (bool, optional): if True, print to streamlit, otherwise
+        via the print statement. Only used when verbose is True.
+        Default to True.
+    progress_bar (bool, optional): if True, create a progress bar in Streamlit.
+        Default to False.
+    force_from_wpAPI (bool, optional): if True, use the WorldPop API regardless
+        of the parameters. Default to False.
+    force_from_GEE (bool, optional): if True, use Google Earth Engine
+        regardless of the parameters. Default to False.
+
+    Returns
+    -------
+    gdf_with_pop (geopandas.GeoDataFrame): input GeoDataFrame with additional
+        columns containing the (dis)aggregated population data.
+    """
+    if force_from_wpAPI and force_from_GEE:
+        raise ValueError("You cannot force the download from both sources!")
+
+    if force_from_wpAPI:
+        return add_population_data_from_wpAPI(
+            gdf=gdf,
+            data_type=data_type,
+            year=year,
+            aggregated=aggregated,
+            data_folder=data_folder,
+            tif_folder=tif_folder,
+            clobber=clobber,
+            verbose=verbose,
+            text_on_streamlit=text_on_streamlit,
+            progress_bar=progress_bar,
+        )
+
+    elif force_from_GEE:
+        return add_population_data_from_GEE(
+            gdf=gdf,
+            data_type=data_type,
+            year=year,
+            aggregated=aggregated,
+            verbose=verbose,
+            text_on_streamlit=text_on_streamlit,
+            progress_bar=progress_bar,
+        )
+
+    else:
+        if (
+            (data_type == "unconstrained" and aggregated)
+            or (data_type == "unconstrained" and not aggregated)
+            or (data_type == "UNadj_constrained" and not aggregated)
+        ):
+            return add_population_data_from_GEE(
+                gdf=gdf,
+                data_type=data_type,
+                year=year,
+                aggregated=aggregated,
+                verbose=verbose,
+                text_on_streamlit=text_on_streamlit,
+                progress_bar=progress_bar,
+            )
+
+        else:
+            return add_population_data_from_wpAPI(
+                gdf=gdf,
+                data_type=data_type,
+                year=year,
+                aggregated=aggregated,
+                data_folder=data_folder,
+                tif_folder=tif_folder,
+                clobber=clobber,
+                verbose=verbose,
+                text_on_streamlit=text_on_streamlit,
+                progress_bar=progress_bar,
+            )
+
+
+def save_shapefile_with_bytesio(
+    gdf: gpd.GeoDataFrame,
+    directory: str,
+) -> str:
+    """
+    Create zipped shapefile using a GeoDataFrame as an input.
+
+    A zipped shapefile, as well as a shapefile with extension .shp, are saved
+    in the folder defined by the argument `directory`.
+
+    Inputs
+    -------
+    gdf (geopandas.GeoDataFrame): input data.
+    directory (str): filepath where the files are saved.
+
+    Returns
+    -------
+    zip_filename (str): filename of the zip file.
+    """
+    zip_filename = "user_shapefiles_zip.zip"
+    gdf.to_file(f"{directory}/user_shapefiles.shp", driver="ESRI Shapefile")
+    zipObj = ZipFile(f"{directory}/{zip_filename}", "w")
+    zipObj.write(
+        f"{directory}/user_shapefiles.shp", arcname="user_shapefiles.shp"
+    )
+    zipObj.write(
+        f"{directory}/user_shapefiles.cpg", arcname="user_shapefiles.cpg"
+    )
+    zipObj.write(
+        f"{directory}/user_shapefiles.dbf", arcname="user_shapefiles.dbf"
+    )
+    zipObj.write(
+        f"{directory}/user_shapefiles.prj", arcname="user_shapefiles.prj"
+    )
+    zipObj.write(
+        f"{directory}/user_shapefiles.shx", arcname="user_shapefiles.shx"
+    )
+    zipObj.close()
+
+    return zip_filename
+
+
+def st_download_shapefile(
+    gdf: gpd.GeoDataFrame,
+    filename: str,
+    label: str = "Download shapefile",
+) -> None:
+    """
+    Create a button to download a shapefile with Streamlit.
+
+    Inputs
+    -------
+    gdf (geopandas.GeoDataFrame): input data.
+    filename (str): name of the saved file.
+    label (str, optional): button label. Default to "Download shapefile".
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        # create the shape files in the temporary directory
+        zip_filename = save_shapefile_with_bytesio(gdf, tmp)
+        with open(f"{tmp}/{zip_filename}", "rb") as file:
+            ste.download_button(
+                label=label,
+                data=file,
+                file_name=filename,
+                mime="application/zip",
+            )

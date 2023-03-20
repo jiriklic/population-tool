@@ -1,18 +1,25 @@
 """Proximity analysis page for Streamlit app."""
-import geopandas as gpd
+import time
+
 import streamlit as st
-from src.config_parameters import params
 from src.utils import (
     add_about,
     add_logo,
+    elapsed_time_string,
     set_tool_page_style,
     toggle_menu_button,
 )
-from src.utils_plotting import plot_pop_data
-from src.utils_population import add_population_data, check_gdf_geometry
+from src.utils_ee import ee_initialize
+from src.utils_plotting import plot_pop_data, st_download_figures
+from src.utils_population import (
+    add_population_data,
+    load_gdf,
+    st_download_shapefile,
+    visualize_data,
+)
 
 # Page configuration
-st.set_page_config(layout="wide", page_title=params["browser_title"])
+# st.set_page_config(layout="wide", page_title=config["browser_title"])
 
 # If app is deployed hide menu button
 toggle_menu_button()
@@ -26,6 +33,9 @@ st.markdown("# Population analysis")
 
 # Set page style
 set_tool_page_style()
+
+# Initialise Google Earth Engine
+ee_initialize()
 
 # Parameters
 verbose = True
@@ -73,20 +83,17 @@ if not upload_geometry_file:
     st.session_state.stage = 0
 
 if st.session_state.stage > 0:
-    try:
-        gdf = gpd.read_file(upload_geometry_file)
-        if not check_gdf_geometry(gdf):
-            st.error(
-                "The  shapefile contains geometries that are not "
-                "polygons. Check the source data."
-            )
-            st.stop()
+    gdf, error = load_gdf(upload_geometry_file)
 
-    except Exception:
-        st.error("Error with importing the shapefile. Check the source data.")
+    if error:
+        st.error(error)
         st.stop()
 
-    st.dataframe(gdf.to_wkt())
+    # TODO: creating folium maps takes time, this should not be run every time
+    # st.cache does not work, as there are no outputs
+    # st.form does not work, as there are several buttons and callbacks in
+    # the app that are not compatible with it
+    visualize_data(gdf)
 
     options_default = ["unconstrained", "constrained", "UNadj_constrained"]
     if st.session_state.data_type not in options_default:
@@ -134,6 +141,7 @@ if st.session_state.stage > 2:
     if run:
         if limit_size_data:
             gdf = gdf.iloc[:4,]
+        start_time = time.time()
         gdf_with_pop = add_population_data(
             gdf=gdf,
             data_type=st.session_state.data_type,
@@ -141,10 +149,18 @@ if st.session_state.stage > 2:
             aggregated=aggregation_dict[aggregation],
             progress_bar=True,
         )
+        elapsed = time.time() - start_time
+        st.markdown(elapsed_time_string(elapsed))
         st.session_state.gdf_with_pop = gdf_with_pop
 
     st.success("Computation complete.")
     st.dataframe(st.session_state.gdf_with_pop.to_wkt())
+
+    st_download_shapefile(
+        gdf=st.session_state.gdf_with_pop,
+        filename="Shapefile_with_pop_data.zip",
+        label="Download shapefile",
+    )
 
     st.markdown("""---""")
     st.markdown("## Population plots")
@@ -171,8 +187,17 @@ if st.session_state.stage > 3:
         col_label=col_label,
         legend_title=legend_title,
         plot_title=plot_title,
+        aggregated=aggregation_dict[aggregation],
     )
 
     st.plotly_chart(fig, use_container_width=True)
+
+    st_download_figures(
+        fig=fig,
+        gdf=st.session_state.gdf_with_pop,
+        col_label=col_label,
+        filename="Figure_pop_data",
+        label="Download figures",
+    )
 
     st.button("Reset analysis", on_click=set_stage, args=(0,))

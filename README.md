@@ -5,7 +5,9 @@
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Imports: isort](https://img.shields.io/badge/%20imports-isort-%231674b1?style=flat&labelColor=ef8336)](https://pycqa.github.io/isort/)
 
-### Tool under development
+### [Tool under development]
+
+This repository contains a Streamlit app that allows users to retrieve population data (aggregated and disaggregated by age and gender) from [WorldPop](https://www.worldpop.org/), given a series of polygons.
 
 
 ## Usage

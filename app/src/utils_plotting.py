@@ -1,13 +1,18 @@
 """Functions for plotting."""
+import copy
+import io
 import math
+import tempfile
 import urllib.request
 from typing import List, Optional, Union
+from zipfile import ZipFile
 
 import folium
 import geopandas as gpd
 import matplotlib
 import numpy as np
 import plotly.graph_objs as go
+import streamlit_ext as ste
 from plotly.subplots import make_subplots
 
 
@@ -24,7 +29,7 @@ def display_polygons_on_map(
     (10m resolution).
 
     Inputs
-    ----------
+    -------
     gdf (geopandas.GeoDataFrame): GeoDataFrame containing Polygon geometries.
     add_countryborders (bool, optional): if True, draw country borders. Default
         to True.
@@ -59,13 +64,13 @@ def display_polygons_on_map(
             )
 
     m = folium.Map(
-        location=[
-            gdf.geometry.centroid.y.mean(),
-            gdf.geometry.centroid.x.mean(),
-        ],
         zoom_start=10,
         control_scale=True,
     )
+
+    # restrict maps to boundaries geodataframe
+    bounds = gdf.total_bounds
+    m.fit_bounds([bounds[:2].tolist()[::-1], bounds[2:].tolist()[::-1]])
 
     # add country borders as a GeoJSON layer
     if add_countryborders:
@@ -98,7 +103,7 @@ def color_list_from_cmap(cmap_name: str, n: int) -> Union[List[str], str]:
     Generate a list of n colors from a specified color map.
 
     Inputs
-    ----------
+    -------
     cmap_name (str): name of the color map to use. This should be a valid
     color map name recognized by matplotlib.cm.get_cmap().
 
@@ -106,7 +111,7 @@ def color_list_from_cmap(cmap_name: str, n: int) -> Union[List[str], str]:
 
     Returns
     -------
-    color_list (list of str): A list of n colors represented as hexadecimal
+    color_list (list of str): list of n colors represented as hexadecimal
         strings.
     """
     cmap = matplotlib.cm.get_cmap(cmap_name)
@@ -127,27 +132,27 @@ def plot_pop_data(
     Plot population data on a bar chart.
 
     Inputs
-    ----------
-    gdf (geopandas.GeoDataFrame): a GeoDataFrame object containing geographic
+    -------
+    gdf (geopandas.GeoDataFrame): GeoDataFrame object containing geographic
         data.
-    col_label (str): the column in the GeoDataFrame that contains the labels
+    col_label (str): column in the GeoDataFrame that contains the labels
         for plotting.
-    legend_title (str): the title of the legend for the plot (when
+    legend_title (str): title of the legend for the plot (when
         plotting disaggregated joint data) or the label of the y-axis (when
         plotting aggregated data).
-    plot_title (str): the title of the plot (only used when plotting
+    plot_title (str): title of the plot (only used when plotting
         disaggregated disjoint data).
-    aggregated (bool, optional): a boolean indicating whether the population
-        data aggregated or not. Default is True.
-    joint (bool, optional): a boolean indicating whether a joint plot should be
+    aggregated (bool, optional): boolean indicating whether the population
+        data aggregated or not. Default to True.
+    joint (bool, optional): boolean indicating whether a joint plot should be
         created. This parameter is only used if aggregated is False.
-        Default is False.
-    cmap_name (str, optional): the name of the color map to be used for the
-        plot. Default is "viridis".
+        Default to False.
+    cmap_name (str, optional): name of the color map to be used for the
+        plot. Default to "viridis".
 
     Returns
     -------
-    fig (plotly.graph_objs.Figure): a plotly figure object containing the plot.
+    fig (plotly.graph_objs.Figure): plotly figure object containing the plot.
 
     """
     if aggregated:
@@ -178,18 +183,18 @@ def plot_pop_data_aggregated(
     Plot aggregated population data on a bar chart.
 
     Inputs
-    ----------
-    gdf (geopandas.GeoDataFrame): a GeoDataFrame object containing geographic
+    -------
+    gdf (geopandas.GeoDataFrame): GeoDataFrame object containing geographic
         data.
-    col_label (str): the column in the GeoDataFrame that contains the labels
+    col_label (str): column in the GeoDataFrame that contains the labels
         for plotting.
-    label_title (str): the label of the y-axis.
-    cmap_name (str, optional): the name of the color map to be used for the
-        plot. Default is "viridis".
+    label_title (str): label for the y-axis.
+    cmap_name (str, optional): name of the color map to be used for the
+        plot. Default to "viridis".
 
     Returns
     -------
-    fig (plotly.graph_objs.Figure): a plotly figure object containing the plot.
+    fig (plotly.graph_objs.Figure): plotly figure object containing the plot.
 
     """
     y = gdf[col_label].tolist()
@@ -235,22 +240,22 @@ def plot_pop_data_disaggregated(
     Plot disaggregated population data on a bar chart.
 
     Inputs
-    ----------
-    gdf (geopandas.GeoDataFrame): a GeoDataFrame object containing geographic
+    -------
+    gdf (geopandas.GeoDataFrame): GeoDataFrame object containing geographic
         data.
-    col_label (str): the column in the GeoDataFrame that contains the labels
+    col_label (str): column in the GeoDataFrame that contains the labels
         for plotting.
-    legend_title (str): the title of the legend for the plot.
-    plot_title (str): the title of the plot (only used when plotting
+    legend_title (str): title of the legend for the plot.
+    plot_title (str): title of the plot (only used when plotting
         disaggregated disjoint data).
-    joint (bool, optional): a boolean indicating whether a joint plot should be
-        created. Default is False.
-    cmap_name (str, optional): the name of the color map to be used for the
-        plot. Default is "viridis".
+    joint (bool, optional): boolean indicating whether a joint plot should be
+        created. Default to False.
+    cmap_name (str, optional): name of the color map to be used for the
+        plot. Default to "viridis".
 
     Returns
     -------
-    fig (plotly.graph_objs.Figure): a plotly figure object containing the plot.
+    fig (plotly.graph_objs.Figure): plotly figure object containing the plot.
 
     """
     if joint:
@@ -277,16 +282,16 @@ def plot_pop_data_split(
     One plot per gender/age will be visualised.
 
     Inputs
-    ----------
-    gdf (geopandas.GeoDataFrame): a GeoDataFrame object containing geographic
+    -------
+    gdf (geopandas.GeoDataFrame): GeoDataFrame object containing geographic
         data.
-    col_label (str): the column in the GeoDataFrame that contains the labels
+    col_label (str): column in the GeoDataFrame that contains the labels
         for plotting.
-    plot_title (str): the title of the plot.
+    plot_title (str): title of the plot.
 
     Returns
     -------
-    fig (plotly.graph_objs.Figure): a plotly figure object containing the plot.
+    fig (plotly.graph_objs.Figure): plotly figure object containing the plot.
 
     """
     data_pop = gdf[[col for col in gdf.columns if "pop_m" in col]].values
@@ -308,9 +313,13 @@ def plot_pop_data_split(
                 x=gdf.iloc[i][
                     [col for col in gdf.columns if "pop_m" in col]
                 ].values,
+                meta=gdf[col_label].tolist()[i],
+                hovertext=gdf.iloc[i][
+                    [col for col in gdf.columns if "pop_m" in col]
+                ].values,
+                hoverinfo="text",
                 orientation="h",
                 name="Men",
-                hoverinfo="x",
                 marker=dict(color="powderblue"),
                 width=3,
                 visible=visible,
@@ -323,9 +332,13 @@ def plot_pop_data_split(
                     [col for col in gdf.columns if "pop_f" in col]
                 ].values
                 * -1,
+                meta=gdf[col_label].tolist()[i],
+                hovertext=gdf.iloc[i][
+                    [col for col in gdf.columns if "pop_f" in col]
+                ].values,
+                hoverinfo="text",
                 orientation="h",
                 name="Women",
-                hoverinfo="x",
                 marker=dict(color="seagreen"),
                 width=3,
                 visible=visible,
@@ -394,18 +407,18 @@ def plot_pop_data_joint(
     Plot disaggregated stacked population data on a bar chart.
 
     Inputs
-    ----------
-    gdf (geopandas.GeoDataFrame): a GeoDataFrame object containing geographic
+    -------
+    gdf (geopandas.GeoDataFrame): GeoDataFrame object containing geographic
         data.
-    col_label (str): the column in the GeoDataFrame that contains the labels
+    col_label (str): column in the GeoDataFrame that contains the labels
         for plotting.
-    legend_title (str): the title of the legend for the plot.
-    cmap_name (str, optional): the name of the color map to be used for the
-        plot. Default is "viridis".
+    legend_title (str): title of the legend for the plot.
+    cmap_name (str, optional): name of the color map to be used for the
+        plot. Default to "viridis".
 
     Returns
     -------
-    fig (plotly.graph_objs.Figure): a plotly figure object containing the plot.
+    fig (plotly.graph_objs.Figure): plotly figure object containing the plot.
 
     """
     y = [int(col[-2:]) for col in gdf.columns if "pop_m" in col]
@@ -462,3 +475,100 @@ def plot_pop_data_joint(
     )
 
     return fig
+
+
+def save_pngs_with_bytesio(
+    fig_list: List[go.Figure],
+    directory: str,
+) -> str:
+    """
+    Create zipped file containing list of figures saved as png.
+
+    A zipped shapefile, as well as figures with format .png, are saved
+    in the folder defined by the argument `directory`.
+
+    Inputs
+    -------
+    fig_list (list): list of plotly figures.
+    directory (str): filepath where the files are saved.
+
+    Returns
+    -------
+    zip_filename (str): filename of the zip file.
+    """
+    zip_filename = "user_figures_zip.zip"
+    zipObj = ZipFile(f"{directory}/{zip_filename}", "w")
+
+    for i, fig in enumerate(fig_list):
+        fig.write_image(file=f"{directory}/fig_{i}.png")
+
+        zipObj.write(f"{directory}/fig_{i}.png", arcname=f"fig_{i}.png")
+
+    zipObj.close()
+
+    return zip_filename
+
+
+def st_download_figures(
+    fig: go.Figure,
+    gdf: gpd.GeoDataFrame,
+    col_label: str,
+    filename: str,
+    label: str = "Download shapefile",
+) -> None:
+    """
+    Create a button to download figures with Streamlit.
+
+    If there are several snapshots in the same figure, each of them is saved as
+    a .png figure in a zipped file.
+
+    Inputs
+    -------
+    fig (go.Figure): input figure.
+    gdf (geopandas.GeoDataFrame): input GeoDataFrame.
+    col_label (str): column in the GeoDataFrame that contains the labels
+        for plotting. Here it is used for the title and to retrieve the
+        snapshots of the figure.
+    filename (str): name of the saved file.
+    label (str, optional): button label. Default to "Download shapefile".
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        if "updatemenus" in fig["layout"]:
+            fig_list = []
+            for i in range(len(gdf)):
+                fig_i = copy.deepcopy(fig)
+                fig_i.update_layout(
+                    updatemenus=[
+                        go.layout.Updatemenu(active=i, visible=False)
+                    ],
+                    title=f"<b>{gdf[col_label].tolist()[i]}",
+                )
+                fig_i.for_each_trace(
+                    lambda trace: trace.update(visible=True)
+                    if trace.meta == gdf[col_label].tolist()[i]
+                    else trace.update(visible=False),
+                )
+                fig_list.append(fig_i)
+            # create the shape files in the temporary directory
+            zip_filename = save_pngs_with_bytesio(fig_list, tmp)
+            with open(f"{tmp}/{zip_filename}", "rb") as file:
+                ste.download_button(
+                    label=label,
+                    data=file,
+                    file_name=f"{filename}.zip",
+                    mime="application/zip",
+                )
+        else:
+            # Create an in-memory buffer
+            buffer = io.BytesIO()
+
+            # Save the figure as a pdf to the buffer
+            fig.write_image(file=buffer, format="png")
+
+            # Download the pdf from the buffer
+            ste.download_button(
+                label=label,
+                data=buffer,
+                file_name=f"{filename}.png",
+                mime="image/png",
+            )

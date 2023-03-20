@@ -4,17 +4,59 @@ import os
 from datetime import date
 
 import streamlit as st
-from src.config_parameters import params
+import yaml
+
+# Load configuration options
+config_path = os.path.join(
+    os.path.dirname(__file__), "../config", "config.yml"
+)
+config = yaml.safe_load(open(config_path))
+
+
+def elapsed_time_string(elapsed: float, text: str = "Elapsed time:") -> str:
+    """
+    Reformat elapsed time into a sentence.
+
+    Inputs:
+    -------
+    elapsed (float): elapsed time in seconds.
+    text (str): sentence to be added to the formatted time. Default to
+        'Elapsed time:'.
+
+    Returns:
+    --------
+    sentence (str): sentence containing the elapsed time, in days, hours,
+        minutes and seconds.
+    """
+    m, s = divmod(int(elapsed), 60)
+    h, m = divmod(m, 60)
+    d, h = divmod(h, 24)
+
+    elaps_str = f"{s}s"
+    if any([t != 0 for t in [m, h, d]]):
+        elaps_str = f"{m}m {elaps_str}"
+    if any([t != 0 for t in [h, d]]):
+        elaps_str = f"{h}h {elaps_str}"
+    if d != 0:
+        elaps_str = f"{d}d {elaps_str}"
+
+    return f"{text} {elaps_str}"
 
 
 # Check if app is deployed
-def is_app_on_streamlit():
-    """Check whether the app is on streamlit or runs locally."""
+def is_app_on_streamlit() -> bool:
+    """
+    Check whether the app is on streamlit or runs locally.
+
+    Returns:
+    --------
+    (bool): True if the app is run on Streamlit cloud, False otherwise.
+    """
     return "HOSTNAME" in os.environ and os.environ["HOSTNAME"] == "streamlit"
 
 
 # General layout
-def toggle_menu_button():
+def toggle_menu_button() -> None:
     """If app is on streamlit, hide menu button."""
     if is_app_on_streamlit():
         st.markdown(
@@ -29,31 +71,31 @@ def toggle_menu_button():
 
 
 # Home page
-def set_home_page_style():
+def set_home_page_style() -> None:
     """Set style home page."""
     st.markdown(
         """
     <style> p { font-size: %s; } </style>
     """
-        % params["docs_fontsize"],
+        % config["docs_fontsize"],
         unsafe_allow_html=True,
     )
 
 
 # Documentation page
-def set_doc_page_style():
+def set_doc_page_style() -> None:
     """Set style documentation page."""
     st.markdown(
         """
     <style> p { font-size: %s; } </style>
     """
-        % params["docs_fontsize"],
+        % config["docs_fontsize"],
         unsafe_allow_html=True,
     )
 
 
 # Tool page
-def set_tool_page_style():
+def set_tool_page_style() -> None:
     """Set style tool page."""
     st.markdown(
         """
@@ -79,13 +121,13 @@ def set_tool_page_style():
             </style>
         """
         % (
-            params["expander_header_fontsize"],
-            params["widget_header_fontsize"],
-            params["widget_header_fontsize"],
-            params["widget_header_fontsize"],
-            params["button_text_fontsize"],
-            params["button_text_fontweight"],
-            params["button_background_color"],
+            config["expander_header_fontsize"],
+            config["widget_header_fontsize"],
+            config["widget_header_fontsize"],
+            config["widget_header_fontsize"],
+            config["button_text_fontsize"],
+            config["button_text_fontweight"],
+            config["button_background_color"],
         ),
         unsafe_allow_html=True,
     )
@@ -93,35 +135,37 @@ def set_tool_page_style():
 
 # Sidebar
 # @st.cache_data()
-def get_base64_of_bin_file(png_file):
+def get_base64_of_bin_file(png_file: str) -> str:
     """
     Get base64 from image file.
 
-    Inputs:
-        png_file (str): image filename
+    Inputs
+    -------
+    png_file (str): image filename
 
-    Returns:
-        str: encoded ASCII file
+    Returns
+    -------
+    str: encoded ASCII file
     """
     with open(png_file, "rb") as f:
         data = f.read()
     return base64.b64encode(data).decode()
 
 
-def build_markup_for_logo(
-    png_file,
-):
+def build_markup_for_logo(png_file: str) -> str:
     """
     Create full string for navigation bar, including logo and title.
 
     Inputs:
-        png_file (str): image filename
-        background_position (str): position logo
-        image_width (str): width logo
-        image_height (str): height logo
+    -------
+    png_file (str): image filename
+    background_position (str): position logo
+    image_width (str): width logo
+    image_height (str): height logo
 
     Returns
-        str: full string with logo and title for sidebar
+    -------
+    (str): full string with logo and title for sidebar
     """
     binary_string = get_base64_of_bin_file(png_file)
     return """
@@ -148,23 +192,22 @@ def build_markup_for_logo(
             </style>
             """ % (
         binary_string,
-        params["MA_logo_background_position"],
-        params["MA_logo_width"],
+        config["MA_logo_background_position"],
+        config["MA_logo_width"],
         "",
-        params["sidebar_header"],
-        params["sidebar_header_fontsize"],
-        params["sidebar_header_fontweight"],
+        config["sidebar_header"],
+        config["sidebar_header_fontsize"],
+        config["sidebar_header_fontweight"],
     )
 
 
-def add_logo(png_file):
+def add_logo(png_file: str) -> None:
     """
     Add logo to sidebar.
 
     Inputs:
-        png_file (str): image filename
-    Returns:
-        None
+    -------
+    png_file (str): image filename
     """
     logo_markup = build_markup_for_logo(png_file)
     # st.sidebar.title("ciao")
@@ -174,15 +217,8 @@ def add_logo(png_file):
     )
 
 
-def add_about():
-    """
-    Add about and contacts to sidebar.
-
-    Inputs:
-        None
-    Returns:
-        None
-    """
+def add_about() -> None:
+    """Add about and contacts to sidebar."""
     today = date.today().strftime("%B %d, %Y")
 
     # About textbox
@@ -217,11 +253,11 @@ def add_about():
         </div>
         """
         % (
-            params["about_box_background_color"],
+            config["about_box_background_color"],
             today,
-            params["url_project_wiki"],
-            params["url_github_repo"],
-            params["url_data_science_wiki"],
+            config["url_project_wiki"],
+            config["url_github_repo"],
+            config["url_data_science_wiki"],
         ),
         unsafe_allow_html=True,
     )
@@ -232,7 +268,7 @@ def add_about():
 
     # Add data scientists and emails
     contacts_text = ""
-    for ds, email in params["data_scientists"].items():
+    for ds, email in config["data_scientists"].items():
         contacts_text += ds + (
             "<span style='float:right; margin-right: 3px;'>"
             "<a href='mailto:%s'>%s</a></span><br>" % (email, email)
@@ -255,6 +291,6 @@ def add_about():
             </p>
         </div>
         """
-        % (params["about_box_background_color"], contacts_text),
+        % (config["about_box_background_color"], contacts_text),
         unsafe_allow_html=True,
     )
