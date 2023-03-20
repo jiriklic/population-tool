@@ -143,3 +143,6 @@ dmypy.json
 
 # world borders
 app/data/world_borders_wp.geojson
+
+# experiment notebook
+*experiment.ipynb
