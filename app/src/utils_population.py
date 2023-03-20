@@ -1,10 +1,12 @@
 """Functions for population data."""
 import copy
 import os
+import tempfile
 import time
 import urllib.request
 from ftplib import FTP
 from typing import Any, Dict, List, Optional, Tuple, Union
+from zipfile import ZipFile
 
 import country_converter as coco
 import ee
@@ -13,6 +15,7 @@ import rasterio
 import requests
 import shapely
 import streamlit as st
+import streamlit_ext as ste
 from pyproj import CRS
 from rasterio.features import shapes
 from rasterstats import zonal_stats
@@ -1127,4 +1130,72 @@ def add_population_data(
                 verbose=verbose,
                 text_on_streamlit=text_on_streamlit,
                 progress_bar=progress_bar,
+            )
+
+
+def save_shapefile_with_bytesio(
+    gdf: gpd.GeoDataFrame,
+    directory: str,
+) -> str:
+    """
+    Create zipped shapefile using a GeoDataFrame as an input.
+
+    A zipped shapefile, as well as a shapefile with extension .shp, are saved
+    in the folder defined by the argument `directory`.
+
+    Inputs
+    -------
+    gdf (geopandas.GeoDataFrame): input data.
+    directory (str): filepath where the files are saved.
+
+    Returns
+    -------
+    zip_filename (str): filename of the zip file.
+    """
+    zip_filename = "user_shapefiles_zip.zip"
+    gdf.to_file(f"{directory}/user_shapefiles.shp", driver="ESRI Shapefile")
+    zipObj = ZipFile(f"{directory}/{zip_filename}", "w")
+    zipObj.write(
+        f"{directory}/user_shapefiles.shp", arcname="user_shapefiles.shp"
+    )
+    zipObj.write(
+        f"{directory}/user_shapefiles.cpg", arcname="user_shapefiles.cpg"
+    )
+    zipObj.write(
+        f"{directory}/user_shapefiles.dbf", arcname="user_shapefiles.dbf"
+    )
+    zipObj.write(
+        f"{directory}/user_shapefiles.prj", arcname="user_shapefiles.prj"
+    )
+    zipObj.write(
+        f"{directory}/user_shapefiles.shx", arcname="user_shapefiles.shx"
+    )
+    zipObj.close()
+
+    return zip_filename
+
+
+def st_download_shapefile(
+    gdf: gpd.GeoDataFrame,
+    filename: str,
+    label: str = "Download shapefile",
+) -> None:
+    """
+    Create a button to download a shapefile with Streamlit.
+
+    Inputs
+    -------
+    gdf (geopandas.GeoDataFrame): input data.
+    filename (str): name of the saved file.
+    label (str, optional): button label. Default to "Download shapefile".
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        # create the shape files in the temporary directory
+        zip_filename = save_shapefile_with_bytesio(gdf, tmp)
+        with open(f"{tmp}/{zip_filename}", "rb") as file:
+            ste.download_button(
+                label=label,
+                data=file,
+                file_name=filename,
+                mime="application/zip",
             )

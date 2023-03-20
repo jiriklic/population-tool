@@ -1,13 +1,18 @@
 """Functions for plotting."""
+import copy
+import io
 import math
+import tempfile
 import urllib.request
 from typing import List, Optional, Union
+from zipfile import ZipFile
 
 import folium
 import geopandas as gpd
 import matplotlib
 import numpy as np
 import plotly.graph_objs as go
+import streamlit_ext as ste
 from plotly.subplots import make_subplots
 
 
@@ -308,9 +313,13 @@ def plot_pop_data_split(
                 x=gdf.iloc[i][
                     [col for col in gdf.columns if "pop_m" in col]
                 ].values,
+                meta=gdf[col_label].tolist()[i],
+                hovertext=gdf.iloc[i][
+                    [col for col in gdf.columns if "pop_m" in col]
+                ].values,
+                hoverinfo="text",
                 orientation="h",
                 name="Men",
-                hoverinfo="x",
                 marker=dict(color="powderblue"),
                 width=3,
                 visible=visible,
@@ -323,9 +332,13 @@ def plot_pop_data_split(
                     [col for col in gdf.columns if "pop_f" in col]
                 ].values
                 * -1,
+                meta=gdf[col_label].tolist()[i],
+                hovertext=gdf.iloc[i][
+                    [col for col in gdf.columns if "pop_f" in col]
+                ].values,
+                hoverinfo="text",
                 orientation="h",
                 name="Women",
-                hoverinfo="x",
                 marker=dict(color="seagreen"),
                 width=3,
                 visible=visible,
@@ -462,3 +475,100 @@ def plot_pop_data_joint(
     )
 
     return fig
+
+
+def save_pngs_with_bytesio(
+    fig_list: List[go.Figure],
+    directory: str,
+) -> str:
+    """
+    Create zipped file containing list of figures saved as png.
+
+    A zipped shapefile, as well as figures with format .png, are saved
+    in the folder defined by the argument `directory`.
+
+    Inputs
+    -------
+    fig_list (list): list of plotly figures.
+    directory (str): filepath where the files are saved.
+
+    Returns
+    -------
+    zip_filename (str): filename of the zip file.
+    """
+    zip_filename = "user_figures_zip.zip"
+    zipObj = ZipFile(f"{directory}/{zip_filename}", "w")
+
+    for i, fig in enumerate(fig_list):
+        fig.write_image(file=f"{directory}/fig_{i}.png")
+
+        zipObj.write(f"{directory}/fig_{i}.png", arcname=f"fig_{i}.png")
+
+    zipObj.close()
+
+    return zip_filename
+
+
+def st_download_figures(
+    fig: go.Figure,
+    gdf: gpd.GeoDataFrame,
+    col_label: str,
+    filename: str,
+    label: str = "Download shapefile",
+) -> None:
+    """
+    Create a button to download figures with Streamlit.
+
+    If there are several snapshots in the same figure, each of them is saved as
+    a .png figure in a zipped file.
+
+    Inputs
+    -------
+    fig (go.Figure): input figure.
+    gdf (geopandas.GeoDataFrame): input GeoDataFrame.
+    col_label (str): column in the GeoDataFrame that contains the labels
+        for plotting. Here it is used for the title and to retrieve the
+        snapshots of the figure.
+    filename (str): name of the saved file.
+    label (str, optional): button label. Default to "Download shapefile".
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        if "updatemenus" in fig["layout"]:
+            fig_list = []
+            for i in range(len(gdf)):
+                fig_i = copy.deepcopy(fig)
+                fig_i.update_layout(
+                    updatemenus=[
+                        go.layout.Updatemenu(active=i, visible=False)
+                    ],
+                    title=f"<b>{gdf[col_label].tolist()[i]}",
+                )
+                fig_i.for_each_trace(
+                    lambda trace: trace.update(visible=True)
+                    if trace.meta == gdf[col_label].tolist()[i]
+                    else trace.update(visible=False),
+                )
+                fig_list.append(fig_i)
+            # create the shape files in the temporary directory
+            zip_filename = save_pngs_with_bytesio(fig_list, tmp)
+            with open(f"{tmp}/{zip_filename}", "rb") as file:
+                ste.download_button(
+                    label=label,
+                    data=file,
+                    file_name=f"{filename}.zip",
+                    mime="application/zip",
+                )
+        else:
+            # Create an in-memory buffer
+            buffer = io.BytesIO()
+
+            # Save the figure as a pdf to the buffer
+            fig.write_image(file=buffer, format="png")
+
+            # Download the pdf from the buffer
+            ste.download_button(
+                label=label,
+                data=buffer,
+                file_name=f"{filename}.png",
+                mime="image/png",
+            )

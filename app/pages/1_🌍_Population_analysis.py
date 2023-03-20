@@ -10,8 +10,13 @@ from src.utils import (
     toggle_menu_button,
 )
 from src.utils_ee import ee_initialize
-from src.utils_plotting import plot_pop_data
-from src.utils_population import add_population_data, load_gdf, visualize_data
+from src.utils_plotting import plot_pop_data, st_download_figures
+from src.utils_population import (
+    add_population_data,
+    load_gdf,
+    st_download_shapefile,
+    visualize_data,
+)
 
 # Page configuration
 # st.set_page_config(layout="wide", page_title=config["browser_title"])
@@ -151,6 +156,12 @@ if st.session_state.stage > 2:
     st.success("Computation complete.")
     st.dataframe(st.session_state.gdf_with_pop.to_wkt())
 
+    st_download_shapefile(
+        gdf=st.session_state.gdf_with_pop,
+        filename="Shapefile_with_pop_data.zip",
+        label="Download shapefile",
+    )
+
     st.markdown("""---""")
     st.markdown("## Population plots")
 
@@ -180,5 +191,13 @@ if st.session_state.stage > 3:
     )
 
     st.plotly_chart(fig, use_container_width=True)
+
+    st_download_figures(
+        fig=fig,
+        gdf=st.session_state.gdf_with_pop,
+        col_label=col_label,
+        filename="Figure_pop_data",
+        label="Download figures",
+    )
 
     st.button("Reset analysis", on_click=set_stage, args=(0,))
