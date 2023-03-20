@@ -7,7 +7,7 @@
 
 ### [Tool under development]
 
-This repository contains a Streamlit app that allows users to retrieve population data (aggregated and disaggregated by age and gender) from [WorldPop](https://www.worldpop.org/). given a series of polygons.
+This repository contains a Streamlit app that allows users to retrieve population data (aggregated and disaggregated by age and gender) from [WorldPop](https://www.worldpop.org/), given a series of polygons.
 
 
 ## Usage
