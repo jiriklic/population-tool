@@ -6,7 +6,7 @@ from google.oauth2 import service_account
 from src.utils import is_app_on_streamlit
 
 
-@st.cache_data
+@st.cache_data(show_spinner="Initializing Google Earth Engine...")
 def ee_initialize():
     """Initialise Google Earth Engine."""
     if is_app_on_streamlit():

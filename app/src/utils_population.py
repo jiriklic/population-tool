@@ -100,9 +100,6 @@ def visualize_data(
         placeholder.empty()
 
 
-st.cache_resource
-
-
 def load_gdf(gdf_file: str) -> Tuple[gpd.GeoDataFrame, Optional[str]]:
     """
     Load GeoDataFrame, change crs, check validity, and make sure it is 2-d.
@@ -1108,15 +1105,29 @@ def add_population_data(
             or (data_type == "unconstrained" and not aggregated)
             or (data_type == "UNadj_constrained" and not aggregated)
         ):
-            return add_population_data_from_GEE(
-                gdf=gdf,
-                data_type=data_type,
-                year=year,
-                aggregated=aggregated,
-                verbose=verbose,
-                text_on_streamlit=text_on_streamlit,
-                progress_bar=progress_bar,
-            )
+            try:
+                return add_population_data_from_GEE(
+                    gdf=gdf,
+                    data_type=data_type,
+                    year=year,
+                    aggregated=aggregated,
+                    verbose=verbose,
+                    text_on_streamlit=text_on_streamlit,
+                    progress_bar=progress_bar,
+                )
+            except ee.EEException:
+                return add_population_data_from_wpAPI(
+                    gdf=gdf,
+                    data_type=data_type,
+                    year=year,
+                    aggregated=aggregated,
+                    data_folder=data_folder,
+                    tif_folder=tif_folder,
+                    clobber=clobber,
+                    verbose=verbose,
+                    text_on_streamlit=text_on_streamlit,
+                    progress_bar=progress_bar,
+                )
 
         else:
             return add_population_data_from_wpAPI(
