@@ -8,6 +8,7 @@ from src.utils import is_app_on_streamlit
 
 @st.cache_data(show_spinner="Initializing Google Earth Engine...")
 def ee_initialize():
+    st.write(f"app on streamlit: {is_app_on_streamlit()}")
     """Initialise Google Earth Engine."""
     if is_app_on_streamlit():
         service_account_keys = st.secrets["ee_keys"]
