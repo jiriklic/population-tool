@@ -12,12 +12,13 @@ import geopandas as gpd
 import matplotlib
 import numpy as np
 import plotly.graph_objs as go
+import shapely
 import streamlit_ext as ste
 from plotly.subplots import make_subplots
 
 
 def display_polygons_on_map(
-    gdf: gpd.GeoDataFrame,
+    data: Union[gpd.GeoDataFrame, shapely.Polygon],
     add_countryborders: bool = True,
     high_res: bool = False,
     world_gdf: Optional[gpd.GeoDataFrame] = None,
@@ -30,7 +31,8 @@ def display_polygons_on_map(
 
     Inputs
     -------
-    gdf (geopandas.GeoDataFrame): GeoDataFrame containing Polygon geometries.
+    data (geopandas.GeoDataFrame or shapely.Polygon): GeoDataFrame containing
+        Polygon geometries or Polygon.
     add_countryborders (bool, optional): if True, draw country borders. Default
         to True.
     high_res (bool, optional): if True, retrieve country borders at high
@@ -69,7 +71,10 @@ def display_polygons_on_map(
     )
 
     # restrict maps to boundaries geodataframe
-    bounds = gdf.total_bounds
+    if type(data) == gpd.geodataframe.GeoDataFrame:
+        bounds = data.total_bounds
+    else:
+        bounds = np.array(data.bounds)
     m.fit_bounds([bounds[:2].tolist()[::-1], bounds[2:].tolist()[::-1]])
 
     # add country borders as a GeoJSON layer
@@ -86,7 +91,7 @@ def display_polygons_on_map(
         ).add_to(m)
 
     folium.GeoJson(
-        gdf,
+        data,
         style_function=lambda feature: {
             "fillColor": "blue",
             "color": "red",
