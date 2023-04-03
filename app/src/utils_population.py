@@ -871,7 +871,10 @@ def add_population_data_from_wpAPI(
 
     for label in label_list:
         gdf_with_pop[label] = [
-            int(pop_total_dict[label][i]) for i in gdf.index
+            int(pop_total_dict[label][i])
+            if i in pop_total_dict[label].keys()
+            else 0
+            for i in gdf.index
         ]
 
     if progress_bar:
@@ -960,6 +963,14 @@ def add_population_data_from_GEE(
     # Each band corresponds to a gender-age category for disaggregated data,
     # or to the total population for aggregated data
     for i, band in enumerate(bands):
+        if progress_bar:
+            my_bar.progress(
+                0.1 + i * 0.9 / len(bands),
+                text=progress_text_base
+                + progress_text
+                + f" band {i+1}/{len(bands)}",
+            )
+
         mock_st_text(
             verbose=verbose,
             text_on_streamlit=text_on_streamlit,
