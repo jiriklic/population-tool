@@ -517,9 +517,10 @@ def save_pngs_with_bytesio(
 def st_download_figures(
     fig: go.Figure,
     gdf: gpd.GeoDataFrame,
+    aggregated: bool,
     col_label: str,
     filename: str,
-    label: str = "Download shapefile",
+    label: str = "Download figure(s)",
 ) -> None:
     """
     Create a button to download figures with Streamlit.
@@ -531,6 +532,7 @@ def st_download_figures(
     -------
     fig (go.Figure): input figure.
     gdf (geopandas.GeoDataFrame): input GeoDataFrame.
+    aggregated (bool): True if data is aggregated (by gender and age).
     col_label (str): column in the GeoDataFrame that contains the labels
         for plotting. Here it is used for the title and to retrieve the
         snapshots of the figure.
@@ -538,7 +540,8 @@ def st_download_figures(
     label (str, optional): button label. Default to "Download shapefile".
     """
     with tempfile.TemporaryDirectory() as tmp:
-        if "updatemenus" in fig["layout"]:
+        # if "updatemenus" in fig["layout"]:
+        if not aggregated:
             fig_list = []
             for i in range(len(gdf)):
                 fig_i = copy.deepcopy(fig)
