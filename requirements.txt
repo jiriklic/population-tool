@@ -1,10 +1,12 @@
 country-converter==1.0.0
-earthengine-api==0.1.345
+earthengine-api==0.1.357
+folium==0.14.0
+geedim==1.7.2
+geemap==0.23.2
 geojson==2.5.0
 geopandas==0.12.2
 kaleido==0.2.1
 matplotlib==3.6.2
-folium==0.14.0
 plotly==5.13.1
 pre-commit==3.1.1
 python-dotenv==1.0.0
