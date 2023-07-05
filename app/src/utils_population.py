@@ -1,16 +1,21 @@
 """Functions for population data."""
 import copy
+import math
 import os
+import shutil
 import tempfile
 import time
 import urllib.request
 from ftplib import FTP
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 from zipfile import ZipFile
 
 import country_converter as coco
 import ee
+import geemap
 import geopandas as gpd
+import numpy as np
 import rasterio
 import requests
 import shapely
@@ -19,7 +24,7 @@ import streamlit_ext as ste
 from pyproj import CRS
 from rasterio.features import shapes
 from rasterstats import zonal_stats
-from shapely.geometry import shape
+from shapely.geometry import box, shape
 from shapely.ops import unary_union
 from src.utils_plotting import display_polygons_on_map
 from streamlit_folium import folium_static
@@ -51,8 +56,38 @@ def mock_st_text(text: str, verbose: bool, text_on_streamlit: bool) -> None:
         print(text)
 
 
-def _to_2d(x, y, z):
-    """Convert shapely.Point to 2d."""
+def size_on_disk(path):
+    """
+    Calculate the size of a file or directory on disk.
+
+    Inputs
+    -------
+    path (str): The path to the file or directory.
+
+    Returns
+    -------
+    float: The size of the file or directory in megabytes (MB).
+
+    """
+    st = os.stat(path)
+    return st.st_blocks * 512 / (1024**2)
+
+
+def _to_2d(x: float, y: float, z: float) -> tuple:
+    """
+    Convert shapely.Point to 2d.
+
+    Inputs
+    -------
+    x (float): The x-coordinate of the point.
+    y (float): The y-coordinate of the point.
+    z (float): The z-coordinate of the point.
+
+    Returns
+    -------
+    tuple: A tuple containing the x and y coordinates of the point.
+
+    """
     return tuple(filter(None, [x, y]))
 
 
@@ -100,7 +135,141 @@ def visualize_data(
         placeholder.empty()
 
 
-def load_gdf(gdf_file: str) -> Tuple[gpd.GeoDataFrame, Optional[str]]:
+def split_single_coordinate(
+    min_c: float, max_c: float, width_coordinate: float
+) -> list:
+    """
+    Split a coordinate range into a list of coordinates with a given step size.
+
+    Inputs
+    -------
+    min_c (float): The minimum value of the coordinate range.
+    max_c (float): The maximum value of the coordinate range.
+    width_coordinate (float): The step size for splitting the coordinate range.
+
+    Returns
+    -------
+    list: A list of coordinates starting from min_c and incrementing by
+        width_coordinate until max_c.
+
+    """
+    c = min_c
+    c_list = []
+    while c < max_c:
+        c_list.append(c)
+        c += width_coordinate
+    c_list.append(max_c)
+    return c_list
+
+
+def split_2d_coordinates(bounds: list, width_coordinate: float) -> tuple:
+    """
+    Split a 2D coordinate space into separate lists of x and y coordinates.
+
+    The 2D coordinate space is defined by bounds.
+
+    Inputs
+    -------
+    bounds (list): The bounds of the coordinate space [min_x, min_y, max_x,
+        max_y].
+    width_coordinate (float): The step size for splitting the coordinate
+        ranges.
+
+    Returns
+    -------
+    tuple: A tuple containing two lists, x_list and y_list, representing the
+        split x and y coordinates.
+
+    """
+    min_x = bounds[0]
+    min_y = bounds[1]
+    max_x = bounds[2]
+    max_y = bounds[3]
+    x_list = split_single_coordinate(min_x, max_x, width_coordinate)
+    y_list = split_single_coordinate(min_y, max_y, width_coordinate)
+    return x_list, y_list
+
+
+def split_polygon(
+    pol_original: shapely.Polygon, width_coordinate: float
+) -> List[shapely.Polygon]:
+    """
+    Split a polygon into a list of smaller rectangular polygons.
+
+    Inputs
+    -------
+    pol_original (shapely.Polygon): The original polygon to be split.
+    width_coordinate (float): The step size for splitting the polygon.
+
+    Returns
+    -------
+    list: A list of smaller rectangular polygons resulting from the split.
+
+    """
+    bounds = pol_original.bounds
+    x_list, y_list = split_2d_coordinates(bounds, width_coordinate)
+    return [
+        box(
+            *np.array(
+                [[x_list[i], y_list[j]], [x_list[i + 1], y_list[j + 1]]]
+            ).flatten()
+        )
+        for i in range(len(x_list) - 1)
+        for j in range(len(y_list) - 1)
+    ]
+
+
+def harmonise_projection(
+    raster_filename: str,
+    keep_old_raster: bool = False,
+    verbose: bool = False,
+    text_on_streamlit: bool = True,
+) -> None:
+    """
+    Harmonise the projection of a raster file by flipping the y-axis.
+
+    Inputs
+    -------
+    raster_filename (str): The filename of the raster file to be harmonised.
+    keep_old_raster (bool, optional): If True, keeps a copy of the original
+        raster file. Defaults to False.
+    verbose (bool, optional): if True, print details run. Default to False.
+    text_on_streamlit (bool, optional): if True, print to streamlit, otherwise
+        via the print statement. Only used when verbose is True. Default to
+        True.
+
+    Returns
+    -------
+    None
+    """
+    with rasterio.open(raster_filename) as old_tif:
+        transform = old_tif.profile["transform"]
+        if transform.e > 0:
+            if keep_old_raster:
+                shutil.copyfile(
+                    raster_filename, f"{Path(raster_filename).stem}_old.tif"
+                )
+            new_profile = old_tif.profile.copy()
+            new_profile["transform"] = rasterio.Affine(
+                transform.a,
+                transform.b,
+                transform.c,
+                transform.d,
+                -1 * transform.e,
+                transform.f + (transform.e * (old_tif.height - 1)),
+            )
+            with rasterio.open(raster_filename, "w", **new_profile) as new_tif:
+                new_tif.write(np.flipud(old_tif.read(1)), indexes=1)
+                mock_st_text(
+                    verbose=verbose,
+                    text_on_streamlit=text_on_streamlit,
+                    text=f"{raster_filename} reprojected",
+                )
+
+
+def load_gdf(
+    gdf_file: st.runtime.uploaded_file_manager.UploadedFile,
+) -> Tuple[gpd.GeoDataFrame, float, Optional[str]]:
     """
     Load GeoDataFrame, change crs, check validity, and make sure it is 2-d.
 
@@ -111,6 +280,7 @@ def load_gdf(gdf_file: str) -> Tuple[gpd.GeoDataFrame, Optional[str]]:
     Returns
     -------
     gdf (geopandas.GeoDataFrame): GeoDataFrame.
+    file_size (float): size of file on disk
     error (str, optional): error string if error was generated, otherwise None.
     """
     gdf = gpd.read_file(gdf_file)
@@ -123,7 +293,8 @@ def load_gdf(gdf_file: str) -> Tuple[gpd.GeoDataFrame, Optional[str]]:
             "download, or the dataframe contains geometries that are not "
             "polygons. Check the source data."
         )
-    return convert_gdf_to_2d(gdf), error
+    file_size = len(gdf_file.getvalue()) / (1024**2)
+    return convert_gdf_to_2d(gdf), file_size, error
 
 
 def check_gdf_geometry(gdf: gpd.GeoDataFrame) -> bool:
@@ -871,7 +1042,10 @@ def add_population_data_from_wpAPI(
 
     for label in label_list:
         gdf_with_pop[label] = [
-            int(pop_total_dict[label][i]) for i in gdf.index
+            int(pop_total_dict[label][i])
+            if i in pop_total_dict[label].keys()
+            else 0
+            for i in gdf.index
         ]
 
     if progress_bar:
@@ -886,6 +1060,7 @@ def add_population_data_from_wpAPI(
 
 def add_population_data_from_GEE(
     gdf: gpd.GeoDataFrame,
+    size_gdf: float,
     data_type: str = "UNadj_constrained",
     year: int = 2020,
     aggregated: bool = True,
@@ -897,8 +1072,105 @@ def add_population_data_from_GEE(
     Add population data to a GeoDataFrame using Google Earth Engine.
 
     The function retrieves population data by clipping rasters retrieved from
+    Google Earth Engine (GEE). The GEE Python client must be initialised before
+    running this function. There are two ways to retrieve data from GEE:
+    (1) with simple geometries, all processes (including clipping the tif files
+        and calculating zonal statistics) can be run on the server side, and
+        the final figures are eventually read into Python variables.
+    (2) GEE does not accept queries with large geometries, therefore, in this
+        case, images clipped according to a bounding box of all geometries are
+        downloaded as tif files (thanks to the library geemap) and these are
+        subsequently clipped according to the original geometries.
+    The second method takes much longer than the first one, as a further
+    limitation is that the image, before being downloaded needs to be split
+    into rectangles. This is necessary to guarantee that not too much memory is
+    used in the process (e.g. when using the zonal_stats function).
+    Here, we first check the size on disk of the GeoDataFrame. It this is
+    smaller than 10MB, then we try to retrieve data using the method (1),
+    and, in case the limitations of GEE are hit, method (2) is applied. If the
+    size is greater than 10MB, method (2) is directly applied.
+
+    Parameters
+    ----------
+    gdf (geopandas.GeoDataFram: GeoDataFrame containing the geometries for
+        which to add population data.
+    size_gdf (float): size on disk of the GeoDataFrame, in MB.
+    data_type (str, optional): type of population estimate.
+        ['unconstrained'| 'constrained' | 'UNadj_constrained']. Default to
+        'UNadj_constrained'.
+    year (int, optional): year of population data. Default to 2020.
+    aggregated (bool, optional): if False, download disaggregated data (by
+        gender and age), if True download only total population figure.
+        Default to True.
+    verbose (bool, optional): if True, print details run. Default to False.
+    text_on_streamlit (bool, optional): if True, print to streamlit, otherwise
+        via the print statement. Only used when verbose is True.
+        Default to True.
+    progress_bar (bool, optional): if True, create a progress bar in Streamlit.
+        Default to False.
+
+    Returns
+    -------
+    gdf_with_pop (geopandas.GeoDataFrame): input GeoDataFrame with additional
+        columns containing the (dis)aggregated population data.
+    """
+    alert_message = (
+        "The GeoDataFrame uploaded is constituted by complex geometries, "
+        "therefore the process of retrieving data from Google Earth Engine "
+        "will be longer than expected."
+    )
+    if size_gdf < 10:
+        try:
+            return add_population_data_from_GEE_simple_geometries(
+                gdf=gdf,
+                data_type=data_type,
+                year=year,
+                aggregated=aggregated,
+                verbose=verbose,
+                text_on_streamlit=text_on_streamlit,
+                progress_bar=progress_bar,
+            )
+        except ee.EEException:
+            st.write(alert_message)
+            return add_population_data_from_GEE_complex_geometries(
+                gdf=gdf,
+                data_type=data_type,
+                year=year,
+                aggregated=aggregated,
+                verbose=verbose,
+                text_on_streamlit=text_on_streamlit,
+                progress_bar=progress_bar,
+            )
+    else:
+        st.write(alert_message)
+        return add_population_data_from_GEE_complex_geometries(
+            gdf=gdf,
+            data_type=data_type,
+            year=year,
+            aggregated=aggregated,
+            verbose=verbose,
+            text_on_streamlit=text_on_streamlit,
+            progress_bar=progress_bar,
+        )
+
+
+def add_population_data_from_GEE_simple_geometries(
+    gdf: gpd.GeoDataFrame,
+    data_type: str = "UNadj_constrained",
+    year: int = 2020,
+    aggregated: bool = True,
+    verbose: bool = False,
+    text_on_streamlit: bool = True,
+    progress_bar: bool = False,
+) -> gpd.GeoDataFrame:
+    """
+    Add population data to a GeoDataFrame using GEE for simple geometries.
+
+    The function retrieves population data by clipping rasters retrieved from
     Google Earth Engine. The GEE Python client must be initialised before
-    running this function.
+    running this function. All processes (including clipping the tif files
+        and calculating zonal statistics) are run on the server side, and
+        the final figures are eventually read into Python variables.
 
     Parameters
     ----------
@@ -960,6 +1232,14 @@ def add_population_data_from_GEE(
     # Each band corresponds to a gender-age category for disaggregated data,
     # or to the total population for aggregated data
     for i, band in enumerate(bands):
+        if progress_bar:
+            my_bar.progress(
+                0.1 + i * 0.9 / len(bands),
+                text=progress_text_base
+                + progress_text
+                + f" band {i+1}/{len(bands)}",
+            )
+
         mock_st_text(
             verbose=verbose,
             text_on_streamlit=text_on_streamlit,
@@ -1017,8 +1297,205 @@ def add_population_data_from_GEE(
     return gdf_with_pop
 
 
+def add_population_data_from_GEE_complex_geometries(
+    gdf: gpd.GeoDataFrame,
+    data_type: str = "UNadj_constrained",
+    year: int = 2020,
+    aggregated: bool = True,
+    width_coordinate: float = 5,
+    verbose: bool = False,
+    text_on_streamlit: bool = True,
+    progress_bar: bool = False,
+) -> gpd.GeoDataFrame:
+    """
+    Add population data to a GeoDataFrame using GEE for complex geometries.
+
+    The function retrieves population data by clipping rasters retrieved from
+    Google Earth Engine. The GEE Python client must be initialised before
+    running this function. GEE does not accept queries with large geometries,
+    therefore, in this case, images clipped according to a bounding box of
+    all geometries are downloaded as tif files (thanks to the library geemap)
+    and these are subsequently clipped according to the original geometries.
+    Each image, before being downloaded, is split into rectangles, whose size
+    is defined by the variable `width_coordinate`. This is necessary to
+    guarantee that not too much memory is used in the process (e.g. when using
+    the `zonal_stats` function).
+
+    Parameters
+    ----------
+    gdf (geopandas.GeoDataFram: GeoDataFrame containing the geometries for
+        which to add population data.
+    data_type (str, optional): type of population estimate.
+        ['unconstrained'| 'constrained' | 'UNadj_constrained']. Default to
+        'UNadj_constrained'.
+    year (int, optional): year of population data. Default to 2020.
+    aggregated (bool, optional): if False, download disaggregated data (by
+        gender and age), if True download only total population figure.
+        Default to True.
+    width_coordinate (float, optional): maximum width (and height) of the
+        rectangles (in degrees) into which the image is split before being
+        downloaded.
+    verbose (bool, optional): if True, print details run. Default to False.
+    text_on_streamlit (bool, optional): if True, print to streamlit, otherwise
+        via the print statement. Only used when verbose is True.
+        Default to True.
+    progress_bar (bool, optional): if True, create a progress bar in Streamlit.
+        Default to False.
+
+    Returns
+    -------
+    gdf_with_pop (geopandas.GeoDataFrame): input GeoDataFrame with additional
+        columns containing the (dis)aggregated population data.
+    """
+    bounds = gdf.total_bounds
+    bounding_box = box(*bounds)
+    pol_list = split_polygon(bounding_box, width_coordinate)
+
+    if data_type == "unconstrained" and aggregated:
+        pop_collection = ee.ImageCollection("WorldPop/GP/100m/pop")
+        initial_band = 0
+    elif data_type == "unconstrained" and not aggregated:
+        pop_collection = ee.ImageCollection("WorldPop/GP/100m/pop_age_sex")
+        initial_band = 1
+    elif data_type == "UNadj_constrained" and not aggregated:
+        pop_collection = ee.ImageCollection(
+            "WorldPop/GP/100m/pop_age_sex_cons_unadj"
+        )
+        initial_band = 1
+    else:
+        raise ValueError(
+            f"The combination data_type={data_type} and aggregated="
+            f"{aggregated} does not exist on Google Earth Engine."
+        )
+
+    # We estimated that the computation for each polygon with size 5x5
+    # degree^2 takes 1 minute. If width_coordinate differs from 5, this
+    # number should change.
+    expected_time = len(pol_list) if aggregated else len(pol_list) * 36
+
+    st.write(
+        "The computation is expected to last "
+        f"{math.floor(expected_time/60)} hours, "
+        f"{expected_time%60} minutes"
+    )
+
+    progress_text_base = "Operation in progress. Please wait. "
+    progress_text = "Retrieving data from Google Earth Engine..."
+
+    if progress_bar:
+        my_bar = st.progress(0.1, text=progress_text_base + progress_text)
+
+    mock_st_text(
+        verbose=verbose,
+        text_on_streamlit=text_on_streamlit,
+        text=progress_text,
+    )
+
+    pop_year = pop_collection.filterMetadata("year", "equals", year)
+    bands = pop_year.first().bandNames().getInfo()[initial_band:]
+
+    pol_gdf = gpd.GeoDataFrame(index=[0], crs=gdf.crs, geometry=[bounding_box])
+    pol_fc = ee.FeatureCollection(pol_gdf.__geo_interface__)
+
+    pol_fc_list = []
+    pol_geom_list = []
+
+    for pol in pol_list:
+        pol_gdf = gpd.GeoDataFrame(index=[0], crs=gdf.crs, geometry=[pol])
+        pol_fc = ee.FeatureCollection(pol_gdf.__geo_interface__)
+        pol_geom = pol_fc.geometry()
+        pol_fc_list.append(pol_fc)
+        pol_geom_list.append(pol_geom)
+
+    zonal_statistics = {}
+    gdf_with_pop = gdf.copy()
+
+    # Each band corresponds to a gender-age category for disaggregated data,
+    # or to the total population for aggregated data
+    for i, band in enumerate(bands):
+        mock_st_text(
+            verbose=verbose,
+            text_on_streamlit=text_on_streamlit,
+            text=f"Band ({i+1}/{len(bands)}): {band}",
+        )
+
+        pop_band = pop_year.select(band)
+        pop_band_img = pop_band.mosaic()
+
+        scale = pop_band.first().projection().nominalScale().getInfo()
+        crs = pop_band_img.get("system:bands").getInfo()[band]["crs"]
+
+        zonal_statistics[band] = [0] * len(gdf)
+
+        for j in range(len(pol_list)):
+            mock_st_text(
+                verbose=verbose,
+                text_on_streamlit=text_on_streamlit,
+                text=f"Polygon: {j+1}/{len(pol_list)}",
+            )
+
+            if progress_bar:
+                my_bar.progress(
+                    0.1 + j * i * 0.9 / (len(bands) * (len(pol_list))),
+                    text=progress_text_base
+                    + progress_text
+                    + (
+                        f" band {i+1}/{len(bands)}, "
+                        f"polygon {j+1}/{len(pol_list)}"
+                    ),
+                )
+
+            clip = pop_band_img.clipToCollection(pol_fc_list[j])
+
+            filename = (
+                f"pol_width_coordinate_{width_coordinate}_"
+                f"{str(j).zfill(2)}.tif"
+            )
+
+            geemap.download_ee_image(
+                image=clip,
+                filename=filename,
+                region=pol_geom_list[j],
+                scale=scale,
+                crs=crs,
+            )
+
+            harmonise_projection(filename, keep_old_raster=False)
+
+            stats = zonal_stats(gdf.geometry.tolist(), filename, stats="sum")
+
+            os.remove(filename)
+
+            zonal_statistics[band] = [
+                zonal_statistics[band][k] + stats[k]["sum"]
+                if stats[k]["sum"] is not None
+                else zonal_statistics[band][k]
+                for k in range(len(stats))
+            ]
+
+            if aggregated:
+                label = "pop_tot"
+            else:
+                label = (
+                    f"pop_{band.split('_')[0].lower()}_"
+                    f"{band.split('_')[1].zfill(2)}"
+                )
+
+            gdf_with_pop[label] = zonal_statistics[band]
+
+    if progress_bar:
+        my_bar.progress(1.0, text=" ")
+
+    mock_st_text(
+        verbose=verbose, text_on_streamlit=text_on_streamlit, text="Done!"
+    )
+
+    return gdf_with_pop
+
+
 def add_population_data(
     gdf: gpd.GeoDataFrame,
+    size_gdf: float,
     data_type: str = "UNadj_constrained",
     year: int = 2020,
     aggregated: bool = True,
@@ -1034,14 +1511,14 @@ def add_population_data(
     """
     Add population data to a GeoDataFrame.
 
-    Depending on the parameters, the function will use the WorldPop API or
-    Google Earth Engine to retrieve population data, unless the user forces
-    the download from one of the two sources.
+    The function will use the Google Earth Engine to retrieve population data,
+    unless the user forces the download from the WorldPop API.
 
     Parameters
     ----------
     gdf (geopandas.GeoDataFram: GeoDataFrame containing the geometries for
         which to add population data.
+    size_gdf (float): size on disk of the GeoDataFrame, in MB.
     data_type (str, optional): type of population estimate.
         ['unconstrained'| 'constrained' | 'UNadj_constrained']. Default to
         'UNadj_constrained'.
@@ -1091,6 +1568,7 @@ def add_population_data(
     elif force_from_GEE:
         return add_population_data_from_GEE(
             gdf=gdf,
+            size_gdf=size_gdf,
             data_type=data_type,
             year=year,
             aggregated=aggregated,
@@ -1100,48 +1578,16 @@ def add_population_data(
         )
 
     else:
-        if (
-            (data_type == "unconstrained" and aggregated)
-            or (data_type == "unconstrained" and not aggregated)
-            or (data_type == "UNadj_constrained" and not aggregated)
-        ):
-            try:
-                return add_population_data_from_GEE(
-                    gdf=gdf,
-                    data_type=data_type,
-                    year=year,
-                    aggregated=aggregated,
-                    verbose=verbose,
-                    text_on_streamlit=text_on_streamlit,
-                    progress_bar=progress_bar,
-                )
-            except ee.EEException:
-                return add_population_data_from_wpAPI(
-                    gdf=gdf,
-                    data_type=data_type,
-                    year=year,
-                    aggregated=aggregated,
-                    data_folder=data_folder,
-                    tif_folder=tif_folder,
-                    clobber=clobber,
-                    verbose=verbose,
-                    text_on_streamlit=text_on_streamlit,
-                    progress_bar=progress_bar,
-                )
-
-        else:
-            return add_population_data_from_wpAPI(
-                gdf=gdf,
-                data_type=data_type,
-                year=year,
-                aggregated=aggregated,
-                data_folder=data_folder,
-                tif_folder=tif_folder,
-                clobber=clobber,
-                verbose=verbose,
-                text_on_streamlit=text_on_streamlit,
-                progress_bar=progress_bar,
-            )
+        return add_population_data_from_GEE(
+            gdf=gdf,
+            size_gdf=size_gdf,
+            data_type=data_type,
+            year=year,
+            aggregated=aggregated,
+            verbose=verbose,
+            text_on_streamlit=text_on_streamlit,
+            progress_bar=progress_bar,
+        )
 
 
 def save_shapefile_with_bytesio(

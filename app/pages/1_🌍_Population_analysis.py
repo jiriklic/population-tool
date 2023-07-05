@@ -43,21 +43,18 @@ limit_size_data = False
 
 # Set initial stage to 0
 if "stage" not in st.session_state:
-    st.session_state.stage = 0
+    st.session_state.stage = -1
 
 if "gdf_with_pop" not in st.session_state:
     st.session_state.gdf_with_pop = None
 
-if "data_type" not in st.session_state:
-    st.session_state.data_type = ""
-
-aggregation_options = [
+aggregation_default_options = [
     "Total population",
     "Disaggregated population (gender, age)",
 ]
 aggregation_dict = {
-    aggregation_options[0]: True,
-    aggregation_options[1]: False,
+    aggregation_default_options[0]: True,
+    aggregation_default_options[1]: False,
 }
 
 
@@ -76,14 +73,17 @@ upload_geometry_file = st.file_uploader(
     "Upload a zipped shapefile containing your geometries",
     type=["zip"],
     on_change=set_stage,
-    args=(1,),
+    args=(0,),
+)
+print(
+    type(upload_geometry_file) == st.runtime.uploaded_file_manager.UploadedFile
 )
 
 if not upload_geometry_file:
-    st.session_state.stage = 0
+    st.session_state.stage = -1
 
-if st.session_state.stage > 0:
-    gdf, error = load_gdf(upload_geometry_file)
+if st.session_state.stage >= 0:
+    gdf, size_gdf, error = load_gdf(upload_geometry_file)
 
     if error:
         st.error(error)
@@ -95,32 +95,22 @@ if st.session_state.stage > 0:
     # the app that are not compatible with it
     visualize_data(gdf)
 
-    options_default = ["unconstrained", "constrained", "UNadj_constrained"]
-    if st.session_state.data_type not in options_default:
-        options_default.append(st.session_state.data_type)
-    index = options_default.index(st.session_state.data_type)
+    options_default = ["", "unconstrained", "UNadj_constrained"]
     data_type = st.selectbox(
         "Select type of population dataset",
         options=options_default,
-        index=index,
+        index=0,
         on_change=set_stage,
-        args=(2,),
-        key="data_type",
+        args=(1,),
     )
 
-if st.session_state.stage > 1:
-    year_options = (
-        list(range(2000, 2021))
-        if st.session_state.data_type == "unconstrained"
-        else [2020]
-    )
-    year = st.selectbox(
-        "Select year",
-        options=year_options,
-        index=len(year_options) - 1,
-        on_change=set_stage,
-        args=(2,),
-    )
+if st.session_state.stage >= 1:
+    if data_type == "":
+        aggregation_options = [""]
+    elif data_type == "unconstrained":
+        aggregation_options = [""] + aggregation_default_options
+    else:
+        aggregation_options = ["", aggregation_default_options[1]]
     aggregation = st.selectbox(
         "Select the data aggregation",
         options=aggregation_options,
@@ -128,12 +118,31 @@ if st.session_state.stage > 1:
         on_change=set_stage,
         args=(2,),
     )
+
+if st.session_state.stage >= 2:
+    if aggregation == "":
+        year_options = [""]
+    elif aggregation == aggregation_default_options[0]:
+        year_options = [""] + [str(y) for y in range(2000, 2021)]
+    else:
+        year_options = [""] + ["2020"]
+    year = st.selectbox(
+        "Select year",
+        options=year_options,
+        index=0,
+        on_change=set_stage,
+        args=(3,),
+    )
+
     st.markdown("### ")
-    run = st.button("Ready to run?", on_click=set_stage, args=(3,))
+
+if st.session_state.stage >= 3:
+    if all([param != "" for param in [year, aggregation, data_type]]):
+        run = st.button("Ready to run?", on_click=set_stage, args=(4,))
 
 
 # Run computations
-if st.session_state.stage > 2:
+if st.session_state.stage >= 4:
     st.markdown("""---""")
     st.markdown("## Results")
 
@@ -144,8 +153,9 @@ if st.session_state.stage > 2:
         start_time = time.time()
         gdf_with_pop = add_population_data(
             gdf=gdf,
-            data_type=st.session_state.data_type,
-            year=year,
+            size_gdf=size_gdf,
+            data_type=data_type,
+            year=int(year),
             aggregated=aggregation_dict[aggregation],
             progress_bar=True,
         )
@@ -173,10 +183,10 @@ if st.session_state.stage > 2:
         args=(4,),
     )
 
-    plot_button = st.button("Create plot", on_click=set_stage, args=(4,))
+    plot_button = st.button("Create plot", on_click=set_stage, args=(5,))
 
 
-if st.session_state.stage > 3:
+if st.session_state.stage >= 5:
     legend_title = ""
     plot_title = "Name geometry"
     joint = False
@@ -197,7 +207,8 @@ if st.session_state.stage > 3:
         gdf=st.session_state.gdf_with_pop,
         col_label=col_label,
         filename="Figure_pop_data",
-        label="Download figures",
+        label="Download figure(s)",
+        aggregated=aggregation_dict[aggregation],
     )
 
     st.button("Reset analysis", on_click=set_stage, args=(0,))

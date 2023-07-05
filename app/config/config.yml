@@ -3,10 +3,11 @@ browser_title: "Population tool - MapAction"
 # Data scientists involved
 data_scientists:
     "Daniele": "dcastellana@mapaction.org"
+    "Piet": "pgerrits@mapaction.org"
     "Cate": "cseale@mapaction.org"
 # Urls
-url_data_science_wiki: ""
-url_project_wiki: ""
+url_data_science_wiki: "https://mapaction.atlassian.net/wiki/spaces/GAFO/overview"
+url_project_wiki: "https://mapaction.atlassian.net/wiki/spaces/GAFO/pages/16280649751/Population+tool"
 url_github_repo: "https://github.com/mapaction/population-tool"
 # Layout and styles
 # Sidebar
