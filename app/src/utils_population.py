@@ -1301,6 +1301,7 @@ def add_population_data_from_GEE_simple_geometries(
 def add_population_data_from_GEE_complex_geometries(
     gdf: gpd.GeoDataFrame,
     data_type: str = "UNadj_constrained",
+    tif_folder: str = "app/test_data/pop_data",
     year: int = 2020,
     aggregated: bool = True,
     width_coordinate: float = 7,
@@ -1329,6 +1330,8 @@ def add_population_data_from_GEE_complex_geometries(
     data_type (str, optional): type of population estimate.
         ['unconstrained'| 'constrained' | 'UNadj_constrained']. Default to
         'UNadj_constrained'.
+    tif_folder (str, optional): folder where the population raster data is
+        saved.
     year (int, optional): year of population data. Default to 2020.
     aggregated (bool, optional): if False, download disaggregated data (by
         gender and age), if True download only total population figure.
@@ -1437,7 +1440,8 @@ def add_population_data_from_GEE_complex_geometries(
 
             if progress_bar:
                 my_bar.progress(
-                    0.1 + j * i * 0.9 / (len(bands) * (len(pol_list))),
+                    0.1
+                    + (j + 1) * (i + 1) * 0.9 / (len(bands) * (len(pol_list))),
                     text=progress_text_base
                     + progress_text
                     + (
@@ -1448,11 +1452,16 @@ def add_population_data_from_GEE_complex_geometries(
 
             clip = pop_band_img.clipToCollection(pol_fc_list[j])
 
-            filename = (
-                f"app/test_data/pop_data/"
-                f"pol_width_coordinate_{width_coordinate}_"
-                f"{str(j).zfill(2)}.tif"
+            filename = os.path.join(
+                tif_folder,
+                (
+                    f"pol_width_coordinate_{width_coordinate}_"
+                    f"{str(j+1).zfill(2)}.tif"
+                ),
             )
+
+            if not os.path.exists(tif_folder):
+                os.makedirs(tif_folder)
 
             geemap.download_ee_image(
                 image=clip,
