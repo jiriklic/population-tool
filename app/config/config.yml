@@ -9,6 +9,9 @@ data_scientists:
 url_data_science_wiki: "https://mapaction.atlassian.net/wiki/spaces/GAFO/overview"
 url_project_wiki: "https://mapaction.atlassian.net/wiki/spaces/GAFO/pages/16280649751/Population+tool"
 url_github_repo: "https://github.com/mapaction/population-tool"
+url_worldpop: "https://www.worldpop.org/"
+url_worldpop_GEE: "https://developers.google.com/earth-engine/datasets/tags/worldpop"
+url_geemap_download: "https://geemap.org/notebooks/118_download_image/"
 # Layout and styles
 # Sidebar
 MA_logo_width: "60%"

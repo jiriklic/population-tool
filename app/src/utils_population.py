@@ -891,7 +891,7 @@ def add_population_data_from_wpAPI(
     statistics for each pair (geometry, country) and aggregate the results
     per geometry.
 
-    Parameters
+    Inputs
     ----------
     gdf (geopandas.GeoDataFram: GeoDataFrame containing the geometries for
         which to add population data.
@@ -1091,7 +1091,7 @@ def add_population_data_from_GEE(
     and, in case the limitations of GEE are hit, method (2) is applied. If the
     size is greater than 10MB, method (2) is directly applied.
 
-    Parameters
+    Inputs
     ----------
     gdf (geopandas.GeoDataFram: GeoDataFrame containing the geometries for
         which to add population data.
@@ -1174,7 +1174,7 @@ def add_population_data_from_GEE_simple_geometries(
         and calculating zonal statistics) are run on the server side, and
         the final figures are eventually read into Python variables.
 
-    Parameters
+    Inputs
     ----------
     gdf (geopandas.GeoDataFram: GeoDataFrame containing the geometries for
         which to add population data.
@@ -1324,7 +1324,7 @@ def add_population_data_from_GEE_complex_geometries(
     guarantee that not too much memory is used in the process (e.g. when using
     the `zonal_stats` function).
 
-    Parameters
+    Inputs
     ----------
     gdf (geopandas.GeoDataFram: GeoDataFrame containing the geometries for
         which to add population data.
@@ -1526,7 +1526,7 @@ def add_population_data(
     The function will use the Google Earth Engine to retrieve population data,
     unless the user forces the download from the WorldPop API.
 
-    Parameters
+    Inputs
     ----------
     gdf (geopandas.GeoDataFram: GeoDataFrame containing the geometries for
         which to add population data.
