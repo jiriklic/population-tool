@@ -26,7 +26,7 @@ pip install -r requirements.txt
 Open a terminal and run
 
 ```shell
-streamlit run app/Home.py
+streamlit run app/population.py
 ```
 
 A new browser window will open and you can start using the tool.

@@ -1131,6 +1131,7 @@ def add_population_data_from_GEE(
                 progress_bar=progress_bar,
             )
         except ee.EEException:
+            st.markdown("### ")
             st.write(alert_message)
             return add_population_data_from_GEE_complex_geometries(
                 gdf=gdf,
@@ -1374,9 +1375,9 @@ def add_population_data_from_GEE_complex_geometries(
     expected_time = len(pol_list) if aggregated else len(pol_list) * 36
 
     st.write(
-        "The computation is expected to last "
+        "The computation is expected to last about "
         f"{math.floor(expected_time/60)} hours, "
-        f"{expected_time%60} minutes"
+        f"{round(expected_time%60, -1)} minutes"
     )
 
     progress_text_base = "Operation in progress. Please wait. "
@@ -1448,6 +1449,7 @@ def add_population_data_from_GEE_complex_geometries(
             clip = pop_band_img.clipToCollection(pol_fc_list[j])
 
             filename = (
+                f"app/test_data/pop_data/"
                 f"pol_width_coordinate_{width_coordinate}_"
                 f"{str(j).zfill(2)}.tif"
             )
