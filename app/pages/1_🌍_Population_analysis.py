@@ -75,9 +75,6 @@ upload_geometry_file = st.file_uploader(
     on_change=set_stage,
     args=(0,),
 )
-print(
-    type(upload_geometry_file) == st.runtime.uploaded_file_manager.UploadedFile
-)
 
 if not upload_geometry_file:
     st.session_state.stage = -1
