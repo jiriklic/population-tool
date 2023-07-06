@@ -1380,7 +1380,7 @@ def add_population_data_from_GEE_complex_geometries(
     st.write(
         "The computation is expected to last about "
         f"{math.floor(expected_time/60)} hours, "
-        f"{round(expected_time%60, -1)} minutes"
+        f"{expected_time%60} minutes"
     )
 
     progress_text_base = "Operation in progress. Please wait. "
