@@ -14,6 +14,7 @@ from src.utils_plotting import plot_pop_data, st_download_figures
 from src.utils_population import (
     add_population_data,
     load_gdf,
+    st_download_csv,
     st_download_shapefile,
     visualize_data,
 )
@@ -167,6 +168,12 @@ if st.session_state.stage >= 4:
         gdf=st.session_state.gdf_with_pop,
         filename="Shapefile_with_pop_data.zip",
         label="Download shapefile",
+    )
+
+    st_download_csv(
+        gdf=st.session_state.gdf_with_pop,
+        filename="DataFrame_with_pop_data.csv",
+        label="Download csv",
     )
 
     st.markdown("""---""")

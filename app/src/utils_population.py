@@ -1,5 +1,6 @@
 """Functions for population data."""
 import copy
+import io
 import math
 import os
 import shutil
@@ -1235,7 +1236,7 @@ def add_population_data_from_GEE_simple_geometries(
     for i, band in enumerate(bands):
         if progress_bar:
             my_bar.progress(
-                0.1 + i * 0.9 / len(bands),
+                0.1 + (i + 1) * 0.8 / len(bands),
                 text=progress_text_base
                 + progress_text
                 + f" band {i+1}/{len(bands)}",
@@ -1380,7 +1381,7 @@ def add_population_data_from_GEE_complex_geometries(
     st.write(
         "The computation is expected to last about "
         f"{math.floor(expected_time/60)} hours, "
-        f"{round(expected_time%60, -1)} minutes"
+        f"{expected_time%60} minutes"
     )
 
     progress_text_base = "Operation in progress. Please wait. "
@@ -1441,7 +1442,7 @@ def add_population_data_from_GEE_complex_geometries(
             if progress_bar:
                 my_bar.progress(
                     0.1
-                    + (j + 1) * (i + 1) * 0.9 / (len(bands) * (len(pol_list))),
+                    + (j + 1) * (i + 1) * 0.8 / (len(bands) * (len(pol_list))),
                     text=progress_text_base
                     + progress_text
                     + (
@@ -1667,3 +1668,27 @@ def st_download_shapefile(
                 file_name=filename,
                 mime="application/zip",
             )
+
+
+def st_download_csv(
+    gdf: gpd.GeoDataFrame,
+    filename: str,
+    label: str = "Download csv",
+) -> None:
+    """
+    Create a button to download a shapefile with Streamlit.
+
+    Inputs
+    -------
+    gdf (geopandas.GeoDataFrame): input data.
+    filename (str): name of the saved file.
+    label (str, optional): button label. Default to "Download shapefile".
+    """
+    buffer = io.BytesIO()
+    gdf.to_csv(buffer, index=False)
+    ste.download_button(
+        label=label,
+        data=buffer,
+        file_name=f"{filename}",
+        mime="text/csv",
+    )
