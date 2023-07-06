@@ -1235,7 +1235,7 @@ def add_population_data_from_GEE_simple_geometries(
     for i, band in enumerate(bands):
         if progress_bar:
             my_bar.progress(
-                0.1 + i * 0.9 / len(bands),
+                0.1 + (i + 1) * 0.9 / len(bands),
                 text=progress_text_base
                 + progress_text
                 + f" band {i+1}/{len(bands)}",
