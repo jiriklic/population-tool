@@ -56,7 +56,9 @@ st.markdown(
         by the tool may vary depending on the region due to limitations of the
         WorldPop's population data, in terms of spatial and temporal
         resolution, as well as inherent uncertainty resulting from modeling and
-        statistical techniques used for estimation.
+        statistical techniques used for estimation. To maintain simplicity and
+        significance, population figures are rounded to the nearest hundred.
+        Therefore, population estimates for very small areas are inconclusive.
     </p>
 """
     % (config["url_worldpop"],),

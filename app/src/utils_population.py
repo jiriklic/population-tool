@@ -1692,6 +1692,7 @@ def st_download_csv(
     filename (str): name of the saved file.
     label (str, optional): button label. Default to "Download shapefile".
     """
+    gdf = gdf.drop(columns="geometry")
     buffer = io.BytesIO()
     gdf.to_csv(buffer, index=False)
     ste.download_button(
