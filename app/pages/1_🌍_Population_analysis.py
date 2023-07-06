@@ -215,4 +215,4 @@ if st.session_state.stage >= 5:
         aggregated=aggregation_dict[aggregation],
     )
 
-    st.button("Reset analysis", on_click=set_stage, args=(0,))
+    st.button("Reset analysis", on_click=set_stage, args=(-1,))

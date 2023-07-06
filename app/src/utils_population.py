@@ -1043,7 +1043,7 @@ def add_population_data_from_wpAPI(
 
     for label in label_list:
         gdf_with_pop[label] = [
-            int(pop_total_dict[label][i])
+            int(round(pop_total_dict[label][i], -2))
             if i in pop_total_dict[label].keys()
             else 0
             for i in gdf.index
@@ -1287,7 +1287,7 @@ def add_population_data_from_GEE_simple_geometries(
     gdf_with_pop = gdf.copy()
 
     for label, pop_data in pop_dict.items():
-        gdf_with_pop[label] = [int(pop) for pop in pop_data]
+        gdf_with_pop[label] = [int(round(pop, -2)) for pop in pop_data]
 
     if progress_bar:
         my_bar.progress(1.0, text=" ")
@@ -1378,11 +1378,17 @@ def add_population_data_from_GEE_complex_geometries(
     # number should change.
     expected_time = len(pol_list) if aggregated else len(pol_list) * 36
 
-    st.write(
-        "The computation is expected to last about "
-        f"{math.floor(expected_time/60)} hours, "
-        f"{expected_time%60} minutes"
-    )
+    if expected_time < 60:
+        st.write(
+            "The computation is expected to last about "
+            f"{expected_time} minutes"
+        )
+    else:
+        st.write(
+            "The computation is expected to last about "
+            f"{math.floor(expected_time/60)} hours, "
+            f"{round(expected_time%60, -1)} minutes"
+        )
 
     progress_text_base = "Operation in progress. Please wait. "
     progress_text = "Retrieving data from Google Earth Engine..."
@@ -1493,7 +1499,9 @@ def add_population_data_from_GEE_complex_geometries(
                     f"{band.split('_')[1].zfill(2)}"
                 )
 
-            gdf_with_pop[label] = zonal_statistics[band]
+            gdf_with_pop[label] = [
+                int(round(pop, -2)) for pop in zonal_statistics[band]
+            ]
 
     if progress_bar:
         my_bar.progress(1.0, text=" ")
