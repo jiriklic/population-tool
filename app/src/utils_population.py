@@ -1305,7 +1305,7 @@ def add_population_data_from_GEE_complex_geometries(
     tif_folder: str = "app/test_data/pop_data",
     year: int = 2020,
     aggregated: bool = True,
-    width_coordinate: float = 7,
+    width_coordinate: float = 5,
     verbose: bool = False,
     text_on_streamlit: bool = True,
     progress_bar: bool = False,
