@@ -1303,7 +1303,7 @@ def add_population_data_from_GEE_complex_geometries(
     data_type: str = "UNadj_constrained",
     year: int = 2020,
     aggregated: bool = True,
-    width_coordinate: float = 5,
+    width_coordinate: float = 7,
     verbose: bool = False,
     text_on_streamlit: bool = True,
     progress_bar: bool = False,
