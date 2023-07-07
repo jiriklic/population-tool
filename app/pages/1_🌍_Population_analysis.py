@@ -44,7 +44,7 @@ limit_size_data = False
 
 # Set initial stage to 0
 if "stage" not in st.session_state:
-    st.session_state.stage = -1
+    st.session_state.stage = 0
 
 if "gdf_with_pop" not in st.session_state:
     st.session_state.gdf_with_pop = None
@@ -69,18 +69,35 @@ def set_stage(stage):
     st.session_state.stage = stage
 
 
-# Create file uploader object for POIs
-upload_geometry_file = st.file_uploader(
-    "Upload a zipped shapefile containing your geometries",
-    type=["zip"],
-    on_change=set_stage,
-    args=(0,),
-)
+# Disclaimer
+if st.session_state.stage == 0:
+    st.markdown(
+        """
+        <p align="justify">
+            <b>Important.</b> Please make sure to carefully read the
+            home and documentation pages before running the tool. It is
+            essential to familiarize yourself with how to use it and be aware
+            of its main limitations and potential challenges when disseminating
+            the outputs.
+        </p>
+        """,
+        unsafe_allow_html=True,
+    )
+    accept = st.button("OK!", on_click=set_stage, args=(1,))
 
-if not upload_geometry_file:
-    st.session_state.stage = -1
+if st.session_state.stage >= 1:
+    # Create file uploader object for POIs
+    upload_geometry_file = st.file_uploader(
+        "Upload a zipped shapefile containing your geometries",
+        type=["zip"],
+        on_change=set_stage,
+        args=(2,),
+    )
 
-if st.session_state.stage >= 0:
+    if not upload_geometry_file:
+        st.session_state.stage = 1
+
+if st.session_state.stage >= 2:
     gdf, size_gdf, error = load_gdf(upload_geometry_file)
 
     if error:
@@ -99,10 +116,10 @@ if st.session_state.stage >= 0:
         options=options_default,
         index=0,
         on_change=set_stage,
-        args=(1,),
+        args=(3,),
     )
 
-if st.session_state.stage >= 1:
+if st.session_state.stage >= 3:
     if data_type == "":
         aggregation_options = [""]
     elif data_type == "unconstrained":
@@ -114,10 +131,10 @@ if st.session_state.stage >= 1:
         options=aggregation_options,
         index=0,
         on_change=set_stage,
-        args=(2,),
+        args=(4,),
     )
 
-if st.session_state.stage >= 2:
+if st.session_state.stage >= 4:
     if aggregation == "":
         year_options = [""]
     elif aggregation == aggregation_default_options[0]:
@@ -129,18 +146,18 @@ if st.session_state.stage >= 2:
         options=year_options,
         index=0,
         on_change=set_stage,
-        args=(3,),
+        args=(5,),
     )
 
     st.markdown("### ")
 
-if st.session_state.stage >= 3:
+if st.session_state.stage >= 5:
     if all([param != "" for param in [year, aggregation, data_type]]):
-        run = st.button("Ready to run?", on_click=set_stage, args=(4,))
+        run = st.button("Ready to run?", on_click=set_stage, args=(6,))
 
 
 # Run computations
-if st.session_state.stage >= 4:
+if st.session_state.stage >= 6:
     st.markdown("""---""")
     st.markdown("## Results")
 
@@ -184,13 +201,13 @@ if st.session_state.stage >= 4:
         options=st.session_state.gdf_with_pop.columns.to_list(),
         index=0,
         on_change=set_stage,
-        args=(4,),
+        args=(6,),
     )
 
-    plot_button = st.button("Create plot", on_click=set_stage, args=(5,))
+    plot_button = st.button("Create plot", on_click=set_stage, args=(7,))
 
 
-if st.session_state.stage >= 5:
+if st.session_state.stage >= 7:
     legend_title = ""
     plot_title = "Name geometry"
     joint = False
@@ -215,4 +232,4 @@ if st.session_state.stage >= 5:
         aggregated=aggregation_dict[aggregation],
     )
 
-    st.button("Reset analysis", on_click=set_stage, args=(-1,))
+    st.button("Reset analysis", on_click=set_stage, args=(0,))
