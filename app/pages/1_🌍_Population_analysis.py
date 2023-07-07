@@ -1,7 +1,9 @@
 """Proximity analysis page for Streamlit app."""
+import os
 import time
 
 import streamlit as st
+import yaml
 from src.utils import (
     add_about,
     add_logo,
@@ -18,6 +20,12 @@ from src.utils_population import (
     st_download_shapefile,
     visualize_data,
 )
+
+# Load configuration options
+config_path = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), os.pardir, "config", "config.yml")
+)
+config = yaml.safe_load(open(config_path))
 
 # Page configuration
 # st.set_page_config(layout="wide", page_title=config["browser_title"])
@@ -73,14 +81,15 @@ def set_stage(stage):
 if st.session_state.stage == 0:
     st.markdown(
         """
-        <p align="justify">
+        <p align="justify"; style="font-size: %s">
             <b>Important.</b> Please make sure to carefully read the
             home and documentation pages before running the tool. It is
             essential to familiarize yourself with how to use it and be aware
             of its main limitations and potential challenges when disseminating
             the outputs.
         </p>
-        """,
+        """
+        % (config["disclaimer_fontsize"],),
         unsafe_allow_html=True,
     )
     accept = st.button("OK!", on_click=set_stage, args=(1,))
