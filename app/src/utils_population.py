@@ -269,7 +269,7 @@ def harmonise_projection(
 
 
 def load_gdf(
-    gdf_file: st.runtime.uploaded_file_manager.UploadedFile,
+    gdf_file: Union[st.runtime.uploaded_file_manager.UploadedFile, str],
 ) -> Tuple[gpd.GeoDataFrame, float, Optional[str]]:
     """
     Load GeoDataFrame, change crs, check validity, and make sure it is 2-d.
@@ -294,8 +294,11 @@ def load_gdf(
             "download, or the dataframe contains geometries that are not "
             "polygons. Check the source data."
         )
-    file_size = len(gdf_file.getvalue()) / (1024**2)
-    return convert_gdf_to_2d(gdf), file_size, error
+    if isinstance(gdf_file, str):
+        file_size = os.stat(gdf_file).st_blocks * 512
+    else:
+        file_size = len(gdf_file.getvalue())
+    return convert_gdf_to_2d(gdf), file_size / (1024**2), error
 
 
 def check_gdf_geometry(gdf: gpd.GeoDataFrame) -> bool:
