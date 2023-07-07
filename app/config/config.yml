@@ -23,6 +23,7 @@ about_box_background_color: "#dae7f4"
 # Introduction and Documentation pages
 docs_fontsize: "1.2rem"
 docs_caption_fontsize: "1rem"
+disclaimer_fontsize: "1.3rem"
 # Tool page
 expander_header_fontsize: "23px"
 widget_header_fontsize: "18px"
