@@ -35,6 +35,7 @@ st.markdown("# Documentation")
 
 # Methodology section
 st.markdown("## Methodology")
+st.markdown("""---""")
 st.markdown(
     """
     <h3>Worldpop data</h3>
@@ -159,6 +160,7 @@ st.markdown(
 
 # Limitation section
 st.markdown("## Key limitations")
+st.markdown("""---""")
 st.markdown(
     """
     <h3>Worldpop data</h3>
