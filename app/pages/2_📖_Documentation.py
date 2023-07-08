@@ -3,6 +3,7 @@ import os
 
 import streamlit as st
 import yaml
+from PIL import Image
 from src.utils import (
     add_about,
     add_logo,
@@ -36,7 +37,7 @@ st.markdown("# Documentation")
 st.markdown("## Methodology")
 st.markdown(
     """
-    <h4>Worldpop data</h4>
+    <h3>Worldpop data</h3>
     <p align="justify">
         WorldPop is a renowned research initiative and open-access data
         repository that plays a pivotal role in providing comprehensive and
@@ -69,7 +70,7 @@ st.markdown(
         detailed information, is currently limited to the year 2020.<br><br>
         For more information, visit <a href='%s'>their website</a>.
     </p>
-    <h4>WorldPop and Google Earth Engine</h4>
+    <h3>WorldPop and Google Earth Engine</h3>
     <p align="justify">
         WorldPop's population data is accessible through their API, with the
         option to download TIF files per country. However, a challenge arises
@@ -99,7 +100,7 @@ st.markdown(
         resulting TIF file <a href='%s'>using <i>geemap</i></a>, and performing
         the calculation of zonal statistics locally.
     </p>
-    <h4>Zonal statistics</h4>
+    <h3>Zonal statistics</h3>
     <p align="justify">
         When all computations are performed within GEE, the calculation of
         zonal statistics is seamlessly integrated into the GEE workflow. GEE
@@ -120,11 +121,47 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+st.markdown(
+    """
+    <h3>Summary</h3>
+    <p align="justify">
+        The images below illustrate the two methodologies described earlier,
+        one for small shapefiles with simple geometries and the other for
+        large shapefiles with complex geometries. When a step is labeled as
+        "GEE," it signifies that the process is carried out within GEE.
+        Conversely, the label "Local" indicates that the process is performed
+        on the client side, locally. The second methodology requires
+        significantly more computational time since multiple TIFF files must
+        be downloaded prior to calculating zonal statistics.
+    </p>
+    """,
+    unsafe_allow_html=True,
+)
+
+st.markdown(
+    "<h4>1. Small shapefiles</h4>",
+    unsafe_allow_html=True,
+)
+image = Image.open("app/img/method_easy.png")
+st.image(image, use_column_width="always")
+
+st.markdown(
+    "<h4>2. Large shapefiles</h6>",
+    unsafe_allow_html=True,
+)
+image = Image.open("app/img/method_complex.png")
+st.image(image, use_column_width="always")
+
+st.markdown(
+    "<br><br>",
+    unsafe_allow_html=True,
+)
+
 # Limitation section
 st.markdown("## Key limitations")
 st.markdown(
     """
-    <h4>Worldpop data</h4>
+    <h3>Worldpop data</h3>
     <ul>
         <li><p align="justify">
             Spatial and temportal resolution may vary, depending on the region
@@ -147,7 +184,7 @@ st.markdown(
             extended time period.
         </p>
     </ul>
-    <h4>Zonal statistics algorithms</h4>
+    <h3>Zonal statistics algorithms</h3>
     <ul>
         <li><p align="justify">
             The algorithms may have limitations in handling
