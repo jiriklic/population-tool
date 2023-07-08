@@ -32,6 +32,7 @@ st.markdown("# Home")
 
 # First section
 st.markdown("## Introduction")
+st.markdown("""---""")
 st.markdown(
     """
     <p align="justify">
@@ -67,6 +68,7 @@ st.markdown(
 
 # Second section
 st.markdown("## How to use the tool")
+st.markdown("""---""")
 st.markdown(
     """
     <p align="justify">
