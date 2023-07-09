@@ -108,7 +108,7 @@ st.markdown(
         statistics, allowing users to extract statistical information, such as
         mean, sum, or maximum, directly within the GEE environment. In
         cases where large shapefiles are involved, the zonal statistics
-        computation are performed in Python. The library <i>rasterstats</i>
+        computation are performed locally. The library <i>rasterstats</i>
         offers a useful function called <i>zonal_stats</i> that enables the
         calculation of zonal statistics outside of the GEE environment.
     </p>
@@ -125,14 +125,18 @@ st.markdown(
     """
     <h3>Summary</h3>
     <p align="justify">
-        The images below illustrate the two methodologies described earlier,
+        The images below illustrate the two methodologies described above,
         one for small shapefiles with simple geometries and the other for
         large shapefiles with complex geometries. When a step is labeled as
         "GEE," it signifies that the process is carried out within GEE.
         Conversely, the label "Local" indicates that the process is performed
         on the client side, locally. The second methodology requires
         significantly more computational time since multiple TIFF files must
-        be downloaded prior to calculating zonal statistics.
+        be downloaded prior to calculating zonal statistics. The whole process
+        needs to be repeated for each requested population figure. When
+        querying aggregated data, only one raster is retrieved from the server,
+        whereas disaggregated data requires the processing of 36 rasters (18
+        age groups for 2 genders).
     </p>
     """,
     unsafe_allow_html=True,
