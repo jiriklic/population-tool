@@ -32,7 +32,6 @@ st.markdown("# Home")
 
 # First section
 st.markdown("## Introduction")
-st.markdown("""---""")
 st.markdown(
     """
     <p align="justify">
@@ -66,9 +65,9 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+st.markdown("""---""")
 # Second section
 st.markdown("## How to use the tool")
-st.markdown("""---""")
 st.markdown(
     """
     <p align="justify">
