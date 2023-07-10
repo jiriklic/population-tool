@@ -8,6 +8,7 @@ data_scientists:
 # Urls
 url_data_science_wiki: "https://mapaction.atlassian.net/wiki/spaces/GAFO/overview"
 url_project_wiki: "https://mapaction.atlassian.net/wiki/spaces/GAFO/pages/16280649751/Population+tool"
+url_project_feedback: "https://mapaction.atlassian.net/wiki/spaces/GAFO/pages/16282353665/Feedback+for+population+tool"
 url_github_repo: "https://github.com/mapaction/population-tool"
 url_worldpop: "https://www.worldpop.org/"
 url_worldpop_GEE: "https://developers.google.com/earth-engine/datasets/tags/worldpop"
