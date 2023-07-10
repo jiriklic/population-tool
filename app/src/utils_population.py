@@ -1446,7 +1446,8 @@ def add_population_data_from_GEE_complex_geometries(
     gdf_with_pop = gdf.copy()
 
     for file in os.listdir(tif_folder):
-        os.remove(os.path.join(tif_folder, file))
+        if ".tif" in file:
+            os.remove(os.path.join(tif_folder, file))
 
     # Each band corresponds to a gender-age category for disaggregated data,
     # or to the total population for aggregated data
