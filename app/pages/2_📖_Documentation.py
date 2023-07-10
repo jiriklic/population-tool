@@ -67,7 +67,14 @@ st.markdown(
         population data spans from the year 2000 to 2020, enabling researchers
         to analyze population trends and changes over a significant time
         period. On the other hand, the disaggregated data, which provides more
-        detailed information, is currently limited to the year 2020.<br><br>
+        detailed information, is currently limited to the year 2020. Worldpop
+        has recently released more up-to-date data for specific countries.
+        However, this tool does not support retrieving data beyond 2020.
+        The limitation arises from the fact that the uploaded areas of interest
+        may encompass multiple countries. To maintain consistent results, it
+        is necessary to have complete global coverage for a specific year.
+        Unfortunately, such coverage is unavailable for years after 2020.
+        <br><br>
         For more information, visit <a href='%s'>their website</a>.
     </p>
     <h3>WorldPop and Google Earth Engine</h3>
@@ -108,8 +115,8 @@ st.markdown(
         statistics, allowing users to extract statistical information, such as
         mean, sum, or maximum, directly within the GEE environment. In
         cases where large shapefiles are involved, the zonal statistics
-        computation are performed locally. The library <i>rasterstats</i>
-        offers a useful function called <i>zonal_stats</i> that enables the
+        computation are performed locally. The library <i>rasterio</i>
+        offers methods that enable the
         calculation of zonal statistics outside of the GEE environment.
     </p>
     """
@@ -173,6 +180,8 @@ st.markdown(
             and data source. In some cases, the data may not capture very
             small-scale population variations or recent changes due to the lag
             in data availability or limitations in the input data sources.
+            To maintain simplicity and significance, population figures are
+            rounded to the nearest hundred.
         </p>
         <li><p align="justify">
             The accuracy of WorldPop's population estimates may be influenced

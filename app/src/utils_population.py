@@ -24,6 +24,7 @@ import streamlit as st
 import streamlit_ext as ste
 from pyproj import CRS
 from rasterio.features import shapes
+from rasterio.mask import mask
 from rasterstats import zonal_stats
 from shapely.geometry import box, shape
 from shapely.ops import unary_union
@@ -846,16 +847,17 @@ def download_worldpop_iso3_tif_ftp(
 
 
 def aggregate_raster_on_geometries(
-    raster_file: str,
+    raster_filename: str,
     geometry_list: List[shapely.Geometry],
     stats: Union[str, List[str]] = "sum",
+    library: str = "rasterio",
 ) -> List:
     """
     Compute zonal statistics of a raster file over a list of vector geometries.
 
     Inputs:
     -------
-    raster_file (str): filepath or url to the input raster file.
+    raster_filename (str): filepath or url to the input raster file.
     geometry_list (list): list of shapely geometries (e.g. polygons) over which
         to compute the zonal statistics.
     stats (str or list, optional): one or more statistics to compute for each
@@ -870,7 +872,26 @@ def aggregate_raster_on_geometries(
         with keys like 'sum', 'mean', etc. depending on the input 'stats'
         parameter.
     """
-    return zonal_stats(geometry_list, raster_file, stats=stats)
+    if library == "rasterstats":
+        stats_dict = zonal_stats(geometry_list, raster_filename, stats=stats)
+        return [s[stats] for s in stats_dict]
+    elif library == "rasterio":
+        stats_list = []
+        with rasterio.open(raster_filename) as raster_file:
+            for geom in geometry_list:
+                try:
+                    masked, _ = mask(
+                        dataset=raster_file, shapes=[geom], crop=True
+                    )
+                    stats_list.append(np.nansum(masked))
+                except Exception as e:
+                    if "Input shapes do not overlap raster" in str(e):
+                        stats_list.append(None)
+                    else:
+                        raise
+        return stats_list
+    else:
+        raise ValueError(f"Library {library} not known.")
 
 
 def add_population_data_from_wpAPI(
@@ -1030,7 +1051,7 @@ def add_population_data_from_wpAPI(
                 pop_total_dict[label] = {}
 
             pop_iso3_agg = aggregate_raster_on_geometries(
-                raster_file=raster_file,
+                raster_filename=raster_file,
                 geometry_list=iso3_list_geometries,
             )
             pop_partial_dict[label] = dict(
@@ -1308,7 +1329,7 @@ def add_population_data_from_GEE_complex_geometries(
     tif_folder: str = "app/test_data/pop_data",
     year: int = 2020,
     aggregated: bool = True,
-    width_coordinate: float = 5,
+    width_coordinate: float = 20,
     verbose: bool = False,
     text_on_streamlit: bool = True,
     progress_bar: bool = False,
@@ -1376,14 +1397,14 @@ def add_population_data_from_GEE_complex_geometries(
             f"{aggregated} does not exist on Google Earth Engine."
         )
 
-    # We estimated that the computation for each polygon with size 5x5
-    # degree^2 takes 1 minute. If width_coordinate differs from 5, this
+    # We estimated that the computation for each polygon with size 20x20
+    # degree^2 takes 6 minutes. If width_coordinate differs from 20, this
     # number should change.
-    expected_time = len(pol_list) if aggregated else len(pol_list) * 36
+    expected_time = 6 * len(pol_list) if aggregated else 6 * len(pol_list) * 36
 
     if expected_time < 60:
         st.write(
-            "The computation is expected to last about "
+            "The computation is expected to last maximum "
             f"{expected_time} minutes"
         )
     else:
@@ -1423,6 +1444,9 @@ def add_population_data_from_GEE_complex_geometries(
 
     zonal_statistics = {}
     gdf_with_pop = gdf.copy()
+
+    for file in os.listdir(tif_folder):
+        os.remove(os.path.join(tif_folder, file))
 
     # Each band corresponds to a gender-age category for disaggregated data,
     # or to the total population for aggregated data
@@ -1483,13 +1507,17 @@ def add_population_data_from_GEE_complex_geometries(
 
             harmonise_projection(filename, keep_old_raster=False)
 
-            stats = zonal_stats(gdf.geometry.tolist(), filename, stats="sum")
+            stats = aggregate_raster_on_geometries(
+                raster_filename=filename,
+                geometry_list=gdf.geometry.tolist(),
+                stats="sum",
+            )
 
             os.remove(filename)
 
             zonal_statistics[band] = [
-                zonal_statistics[band][k] + stats[k]["sum"]
-                if stats[k]["sum"] is not None
+                zonal_statistics[band][k] + stats[k]
+                if stats[k] is not None
                 else zonal_statistics[band][k]
                 for k in range(len(stats))
             ]

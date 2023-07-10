@@ -70,7 +70,7 @@ st.markdown("""---""")
 st.markdown("## How to use the tool")
 st.markdown(
     """
-    <p align="justify">
+    <p align="justify" style="color:#AF0000">
         <b>Important.</b> The duration of each step in the tool may vary
         based on the size of the uploaded data, and while the tool is
         processing, you will observe a "running" status with a runner icon
@@ -98,7 +98,12 @@ st.markdown(
             Select the preferred data aggregation. You can retrieve the total
             population for each area of interest, or disaggregated population
             data (by gender and age). Depending on the data type, one of the
-            two options might not be available.
+            two options might not be available. The gender-age groups can be
+            defined as follows for females (and similarly for males, with
+            the letter <i>m</i>): <i>f_00</i> includes individuals with ages
+            between 0-1, <i>f_01</i> between 1-4, <i>f_05</i> (and so on, up to
+            <i>f_75</i>) between 5-9 (up to 75-79), and <i>f_80</i> greater
+            than 80.
         </p>
         <li><p align="justify">
             Specify the year.  Total population data is available for the years

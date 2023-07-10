@@ -44,7 +44,7 @@ def elapsed_time_string(elapsed: float, text: str = "Elapsed time:") -> str:
 
 
 # Check if app is deployed
-def is_app_on_streamlit() -> bool:
+def is_app_on_streamlit_cloud() -> bool:
     """
     Check whether the app is on streamlit or runs locally.
 
@@ -58,7 +58,7 @@ def is_app_on_streamlit() -> bool:
 # General layout
 def toggle_menu_button() -> None:
     """If app is on streamlit, hide menu button."""
-    if is_app_on_streamlit():
+    if is_app_on_streamlit_cloud():
         st.markdown(
             """
         <style>
@@ -246,6 +246,8 @@ def add_about() -> None:
                 <a href='%s'>
                 Wiki reference page</a><br>
                 <a href='%s'>
+                Feedback page</a><br>
+                <a href='%s'>
                 GitHub repository</a><br>
                 <a href='%s'>
                 Data Science Lab</a>
@@ -256,6 +258,7 @@ def add_about() -> None:
             config["about_box_background_color"],
             today,
             config["url_project_wiki"],
+            config["url_project_feedback"],
             config["url_github_repo"],
             config["url_data_science_wiki"],
         ),
