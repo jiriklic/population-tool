@@ -76,6 +76,8 @@ def create_tif_folder(tif_parent_folder: str = "app/data") -> str:
     str: The path to the created folder.
 
     """
+    if not os.path.exists(tif_parent_folder):
+        os.makedirs(tif_parent_folder)
     current_suffixes = [
         int(f.name.split("_")[-1])
         for f in os.scandir(tif_parent_folder)
