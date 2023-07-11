@@ -15,6 +15,8 @@ from src.utils_ee import ee_initialize
 from src.utils_plotting import plot_pop_data, st_download_figures
 from src.utils_population import (
     add_population_data,
+    create_tif_folder,
+    delete_tif_folder,
     load_gdf,
     st_download_csv,
     st_download_shapefile,
@@ -68,6 +70,10 @@ aggregation_dict = {
     aggregation_default_options[0]: True,
     aggregation_default_options[1]: False,
 }
+
+# Create tif folder
+if "tif_folder" not in st.session_state:
+    st.session_state.tif_folder = create_tif_folder()
 
 
 # Define function to change stage
@@ -182,10 +188,12 @@ if st.session_state.stage >= 6:
             gdf=gdf,
             size_gdf=size_gdf,
             data_type=data_type,
+            tif_folder=st.session_state.tif_folder,
             year=int(year),
             aggregated=aggregation_dict[aggregation],
             progress_bar=True,
         )
+        delete_tif_folder(st.session_state.tif_folder)
         elapsed = time.time() - start_time
         st.markdown(elapsed_time_string(elapsed))
         st.session_state.gdf_with_pop = gdf_with_pop

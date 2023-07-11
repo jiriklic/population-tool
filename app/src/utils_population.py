@@ -58,21 +58,77 @@ def mock_st_text(text: str, verbose: bool, text_on_streamlit: bool) -> None:
         print(text)
 
 
-def size_on_disk(path):
+def create_tif_folder(tif_parent_folder: str = "app/data") -> str:
     """
-    Calculate the size of a file or directory on disk.
+    Create a folder where to store TIF files.
+
+    The folder is created in the parent folder defined as a parameter. The
+    function scans the existing subfolders in the parent folder, and define
+    the new folder name as 'pop_data_<x+1>', where <x> is the highest suffix
+    among the ones already existing.
 
     Inputs
     -------
-    path (str): The path to the file or directory.
+    tif_parent_folder (str): The path to the parent directory.
 
     Returns
     -------
-    float: The size of the file or directory in megabytes (MB).
+    str: The path to the created folder.
 
     """
-    st = os.stat(path)
-    return st.st_blocks * 512 / (1024**2)
+    current_suffixes = [
+        int(f.name.split("_")[-1])
+        for f in os.scandir(tif_parent_folder)
+        if f.is_dir()
+    ]
+    if current_suffixes:
+        suffix = str(max(current_suffixes) + 1).zfill(2)
+    else:
+        suffix = "00"
+    tif_folder = os.path.join(tif_parent_folder, f"pop_data_{suffix}")
+    if not os.path.exists(tif_folder):
+        os.makedirs(tif_folder)
+    return tif_folder
+
+
+def delete_tif_folder(tif_folder: str) -> None:
+    """
+    Delete the folder where TIF files are stored, together with its content.
+
+    Inputs
+    -------
+    tif_folder (str): The path to the directory where TIF files are stored.
+
+    Returns
+    -------
+    None.
+
+    """
+    if os.path.exists(tif_folder):
+        shutil.rmtree(tif_folder)
+
+
+def size_on_disk(
+    file: Union[st.runtime.uploaded_file_manager.UploadedFile, str]
+) -> float:
+    """
+    Calculate the size of a file on disk.
+
+    Inputs
+    -------
+    file (str or st.runtime.uploaded_file_manager.UploadedFile): filename or
+        output of the function streamlit.file_uploader.
+
+    Returns
+    -------
+    float: The size of the file in megabytes (MB).
+
+    """
+    if isinstance(file, str):
+        file_size = os.stat(file).st_blocks * 512
+    else:
+        file_size = len(file.getvalue())
+    return file_size / (1024**2)
 
 
 def _to_2d(x: float, y: float, z: float) -> tuple:
@@ -287,7 +343,8 @@ def load_gdf(
 
     Inputs
     -------
-    gdf_file (str): filename of the geopandas.GeoDataFrame.
+    gdf_file (str or st.runtime.uploaded_file_manager.UploadedFile): filename
+        of the geopandas.GeoDataFrame.
 
     Returns
     -------
@@ -305,11 +362,7 @@ def load_gdf(
             "download, or the dataframe contains geometries that are not "
             "polygons. Check the source data."
         )
-    if isinstance(gdf_file, str):
-        file_size = os.stat(gdf_file).st_blocks * 512
-    else:
-        file_size = len(gdf_file.getvalue())
-    return convert_gdf_to_2d(gdf), file_size / (1024**2), error
+    return convert_gdf_to_2d(gdf), size_on_disk(gdf_file), error
 
 
 def check_gdf_geometry(gdf: gpd.GeoDataFrame) -> bool:
@@ -438,7 +491,7 @@ def find_intersections_polygon(
 def find_intersections_gdf(
     gdf: gpd.GeoDataFrame,
     data_folder: str = "app/data",
-    tif_folder: str = "app/test_data/pop_data",
+    tif_folder: str = "app/data/pop_data",
 ) -> Tuple[Dict, List[str]]:
     """
     Find the intersections between polygons in a dataframe and country borders.
@@ -484,7 +537,7 @@ def find_intersections_gdf(
 
 
 def retrieve_country_borders_wp(
-    tif_folder: str = "app/test_data/pop_data",
+    tif_folder: str = "app/data/pop_data",
 ) -> gpd.GeoDataFrame:
     """
     Retrieve country borders from WorldPop.
@@ -908,7 +961,7 @@ def add_population_data_from_wpAPI(
     year: int = 2020,
     aggregated: bool = True,
     data_folder: str = "app/data",
-    tif_folder: str = "app/test_data/pop_data",
+    tif_folder: str = "app/data/pop_data",
     clobber: bool = False,
     verbose: bool = False,
     text_on_streamlit: bool = True,
@@ -1095,6 +1148,7 @@ def add_population_data_from_GEE(
     gdf: gpd.GeoDataFrame,
     size_gdf: float,
     data_type: str = "UNadj_constrained",
+    tif_folder: str = "app/data/pop_data",
     year: int = 2020,
     aggregated: bool = True,
     verbose: bool = False,
@@ -1131,6 +1185,8 @@ def add_population_data_from_GEE(
     data_type (str, optional): type of population estimate.
         ['unconstrained'| 'constrained' | 'UNadj_constrained']. Default to
         'UNadj_constrained'.
+    tif_folder (str, optional): folder where the population raster data is
+        saved.
     year (int, optional): year of population data. Default to 2020.
     aggregated (bool, optional): if False, download disaggregated data (by
         gender and age), if True download only total population figure.
@@ -1169,6 +1225,7 @@ def add_population_data_from_GEE(
             return add_population_data_from_GEE_complex_geometries(
                 gdf=gdf,
                 data_type=data_type,
+                tif_folder=tif_folder,
                 year=year,
                 aggregated=aggregated,
                 verbose=verbose,
@@ -1180,6 +1237,7 @@ def add_population_data_from_GEE(
         return add_population_data_from_GEE_complex_geometries(
             gdf=gdf,
             data_type=data_type,
+            tif_folder=tif_folder,
             year=year,
             aggregated=aggregated,
             verbose=verbose,
@@ -1334,7 +1392,7 @@ def add_population_data_from_GEE_simple_geometries(
 def add_population_data_from_GEE_complex_geometries(
     gdf: gpd.GeoDataFrame,
     data_type: str = "UNadj_constrained",
-    tif_folder: str = "app/test_data/pop_data",
+    tif_folder: str = "app/data/pop_data",
     year: int = 2020,
     aggregated: bool = True,
     width_coordinate: float = 20,
@@ -1412,13 +1470,13 @@ def add_population_data_from_GEE_complex_geometries(
     if expected_time < 60:
         st.write(
             "The expected duration of the computation is a maximum of "
-            f"{expected_time} minutes"
+            f"{expected_time} minutes."
         )
     else:
         st.write(
             "The expected duration of the computation is a maximum of "
             f"{math.floor(expected_time/60)} hours, "
-            f"{round(expected_time%60, -1)} minutes"
+            f"{round(expected_time%60, -1)} minutes."
         )
 
     progress_text_base = "Operation in progress. Please wait. "
@@ -1499,7 +1557,8 @@ def add_population_data_from_GEE_complex_geometries(
                 tif_folder,
                 (
                     f"pol_width_coordinate_{width_coordinate}_"
-                    f"{str(j+1).zfill(2)}.tif"
+                    f"band_{str(i+1).zfill(2)}_"
+                    f"polygon_{str(j+1).zfill(2)}.tif"
                 ),
             )
 
@@ -1557,7 +1616,7 @@ def add_population_data(
     year: int = 2020,
     aggregated: bool = True,
     data_folder: str = "app/data",
-    tif_folder: str = "app/test_data/pop_data",
+    tif_folder: str = "app/data/pop_data",
     clobber: bool = False,
     verbose: bool = False,
     text_on_streamlit: bool = True,
@@ -1620,6 +1679,7 @@ def add_population_data(
             gdf=gdf,
             size_gdf=size_gdf,
             data_type=data_type,
+            tif_folder=tif_folder,
             year=year,
             aggregated=aggregated,
             verbose=verbose,
