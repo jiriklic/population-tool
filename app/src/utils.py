@@ -40,7 +40,7 @@ def elapsed_time_string(elapsed: float, text: str = "Elapsed time:") -> str:
     if d != 0:
         elaps_str = f"{d}d {elaps_str}"
 
-    return f"{text} {elaps_str}"
+    return f"{text} {elaps_str}."
 
 
 # Check if app is deployed
