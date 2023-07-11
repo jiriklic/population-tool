@@ -18,7 +18,10 @@ config_path = os.path.abspath(
 config = yaml.safe_load(open(config_path))
 
 # Page configuration
-# st.set_page_config(layout="wide", page_title=config["browser_title"])
+try:
+    st.set_page_config(layout="wide", page_title=config["browser_title"])
+except Exception:
+    pass
 
 # If app is deployed hide menu button
 toggle_menu_button()

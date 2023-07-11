@@ -230,6 +230,16 @@ def harmonise_projection(
     """
     Harmonise the projection of a raster file by flipping the y-axis.
 
+    Typically, rasters are defined using a geotransform that starts at the
+    upper left coordinate ("north up"), where each subsequent row of the
+    raster is moving further south (negative Y). In some cases, rasters
+    downloaded from Google Earth Engine are defined using a geotransform that
+    starts at the bottom left. This results in the window using to read each
+    feature out of the raster being invalid. To be able to be read by libraries
+    such as rasterstats, rasters need to be transformed to the tipical format.
+    This is achieved by updating the transform property of the raster to be
+    anchored from the upper left coordinate, with a negative y cell size.
+
     Inputs
     -------
     raster_filename (str): The filename of the raster file to be harmonised.
@@ -340,6 +350,52 @@ def convert_gdf_to_2d(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
             geom_2d_list.append(geom)
 
     return gdf.set_geometry(geom_2d_list)
+
+
+def aggregate_raster_on_geometries(
+    raster_filename: str,
+    geometry_list: List[shapely.Geometry],
+    library: str = "rasterio",
+) -> List[int]:
+    """
+    Compute zonal statistics of a raster file over a list of vector geometries.
+
+    Inputs:
+    -------
+    raster_filename (str): filepath or url to the input raster file.
+    geometry_list (list): list of shapely geometries (e.g. polygons) over which
+        to compute the zonal statistics.
+    library (str, optional): library used to perform the zonal statistics.
+        Options are 'rasterio', with the method 'mask.mask', and 'rasterstats',
+        with the method 'zonal_stats'. Default to 'rasterio'.
+
+    Returns:
+    -------
+    stats_list (list): list of zonal statistics computed for each input
+        geometry, in the same order as the input list. Each item in the list is
+        an integer (rounded to the next hundred) representing the zonal
+        statistics (sum) for a single geometry.
+    """
+    if library == "rasterstats":
+        stats_dict = zonal_stats(geometry_list, raster_filename, stats="sum")
+        stats_list = [s["sum"] for s in stats_dict]
+    elif library == "rasterio":
+        stats_list = []
+        with rasterio.open(raster_filename) as raster_file:
+            for geom in geometry_list:
+                try:
+                    masked, _ = mask(
+                        dataset=raster_file, shapes=[geom], crop=True
+                    )
+                    stats_list.append(np.nansum(masked))
+                except Exception as e:
+                    if "Input shapes do not overlap raster" in str(e):
+                        stats_list.append(None)
+                    else:
+                        raise
+    else:
+        raise ValueError(f"Library {library} not known.")
+    return [int(round(s, -2)) for s in stats_list]
 
 
 def find_intersections_polygon(
@@ -846,54 +902,6 @@ def download_worldpop_iso3_tif_ftp(
     return filename_list, label_list, step_progression
 
 
-def aggregate_raster_on_geometries(
-    raster_filename: str,
-    geometry_list: List[shapely.Geometry],
-    stats: Union[str, List[str]] = "sum",
-    library: str = "rasterio",
-) -> List:
-    """
-    Compute zonal statistics of a raster file over a list of vector geometries.
-
-    Inputs:
-    -------
-    raster_filename (str): filepath or url to the input raster file.
-    geometry_list (list): list of shapely geometries (e.g. polygons) over which
-        to compute the zonal statistics.
-    stats (str or list, optional): one or more statistics to compute for each
-        geometry, such as 'mean', 'sum', 'min', 'max', 'std', etc. Default to
-        'sum'.
-
-    Returns:
-    -------
-    stats_list (list): list of zonal statistics computed for each input
-        geometry, in the same order as the input list. Each item in the list is
-        a dictionary containing the zonal statistics for a single geometry,
-        with keys like 'sum', 'mean', etc. depending on the input 'stats'
-        parameter.
-    """
-    if library == "rasterstats":
-        stats_dict = zonal_stats(geometry_list, raster_filename, stats=stats)
-        return [s[stats] for s in stats_dict]
-    elif library == "rasterio":
-        stats_list = []
-        with rasterio.open(raster_filename) as raster_file:
-            for geom in geometry_list:
-                try:
-                    masked, _ = mask(
-                        dataset=raster_file, shapes=[geom], crop=True
-                    )
-                    stats_list.append(np.nansum(masked))
-                except Exception as e:
-                    if "Input shapes do not overlap raster" in str(e):
-                        stats_list.append(None)
-                    else:
-                        raise
-        return stats_list
-    else:
-        raise ValueError(f"Library {library} not known.")
-
-
 def add_population_data_from_wpAPI(
     gdf: gpd.GeoDataFrame,
     data_type: str = "UNadj_constrained",
@@ -1055,7 +1063,7 @@ def add_population_data_from_wpAPI(
                 geometry_list=iso3_list_geometries,
             )
             pop_partial_dict[label] = dict(
-                zip(iso3_list_indexes, [pop["sum"] for pop in pop_iso3_agg])
+                zip(iso3_list_indexes, pop_iso3_agg)
             )
 
             for key, value in pop_partial_dict[label].items():
@@ -1067,7 +1075,7 @@ def add_population_data_from_wpAPI(
 
     for label in label_list:
         gdf_with_pop[label] = [
-            int(round(pop_total_dict[label][i], -2))
+            pop_total_dict[label][i]
             if i in pop_total_dict[label].keys()
             else 0
             for i in gdf.index
@@ -1099,17 +1107,17 @@ def add_population_data_from_GEE(
     The function retrieves population data by clipping rasters retrieved from
     Google Earth Engine (GEE). The GEE Python client must be initialised before
     running this function. There are two ways to retrieve data from GEE:
-    (1) with simple geometries, all processes (including clipping the tif files
+    (1) with simple geometries, all processes (including clipping the TIF files
         and calculating zonal statistics) can be run on the server side, and
         the final figures are eventually read into Python variables.
     (2) GEE does not accept queries with large geometries, therefore, in this
         case, images clipped according to a bounding box of all geometries are
-        downloaded as tif files (thanks to the library geemap) and these are
+        downloaded as TIF files (thanks to the library geemap) and these are
         subsequently clipped according to the original geometries.
     The second method takes much longer than the first one, as a further
     limitation is that the image, before being downloaded needs to be split
     into rectangles. This is necessary to guarantee that not too much memory is
-    used in the process (e.g. when using the zonal_stats function).
+    used in the process.
     Here, we first check the size on disk of the GeoDataFrame. It this is
     smaller than 10MB, then we try to retrieve data using the method (1),
     and, in case the limitations of GEE are hit, method (2) is applied. If the
@@ -1194,9 +1202,9 @@ def add_population_data_from_GEE_simple_geometries(
 
     The function retrieves population data by clipping rasters retrieved from
     Google Earth Engine. The GEE Python client must be initialised before
-    running this function. All processes (including clipping the tif files
-        and calculating zonal statistics) are run on the server side, and
-        the final figures are eventually read into Python variables.
+    running this function. All processes (including clipping the TIF files
+    and calculating zonal statistics) are run on the server side, and the final
+    figures are eventually read into Python variables.
 
     Inputs
     ----------
@@ -1311,7 +1319,7 @@ def add_population_data_from_GEE_simple_geometries(
     gdf_with_pop = gdf.copy()
 
     for label, pop_data in pop_dict.items():
-        gdf_with_pop[label] = [int(round(pop, -2)) for pop in pop_data]
+        gdf_with_pop[label] = pop_data
 
     if progress_bar:
         my_bar.progress(1.0, text=" ")
@@ -1341,12 +1349,11 @@ def add_population_data_from_GEE_complex_geometries(
     Google Earth Engine. The GEE Python client must be initialised before
     running this function. GEE does not accept queries with large geometries,
     therefore, in this case, images clipped according to a bounding box of
-    all geometries are downloaded as tif files (thanks to the library geemap)
+    all geometries are downloaded as TIF files (thanks to the library geemap)
     and these are subsequently clipped according to the original geometries.
     Each image, before being downloaded, is split into rectangles, whose size
     is defined by the variable `width_coordinate`. This is necessary to
-    guarantee that not too much memory is used in the process (e.g. when using
-    the `zonal_stats` function).
+    guarantee that not too much memory is used in the process.
 
     Inputs
     ----------
@@ -1363,7 +1370,7 @@ def add_population_data_from_GEE_complex_geometries(
         Default to True.
     width_coordinate (float, optional): maximum width (and height) of the
         rectangles (in degrees) into which the image is split before being
-        downloaded.
+        downloaded. Default to 20.
     verbose (bool, optional): if True, print details run. Default to False.
     text_on_streamlit (bool, optional): if True, print to streamlit, otherwise
         via the print statement. Only used when verbose is True.
@@ -1404,12 +1411,12 @@ def add_population_data_from_GEE_complex_geometries(
 
     if expected_time < 60:
         st.write(
-            "The computation is expected to last maximum "
+            "The expected duration of the computation is a maximum of "
             f"{expected_time} minutes"
         )
     else:
         st.write(
-            "The computation is expected to last about "
+            "The expected duration of the computation is a maximum of "
             f"{math.floor(expected_time/60)} hours, "
             f"{round(expected_time%60, -1)} minutes"
         )
@@ -1445,9 +1452,10 @@ def add_population_data_from_GEE_complex_geometries(
     zonal_statistics = {}
     gdf_with_pop = gdf.copy()
 
-    for file in os.listdir(tif_folder):
-        if ".tif" in file:
-            os.remove(os.path.join(tif_folder, file))
+    if os.path.exists(tif_folder):
+        for file in os.listdir(tif_folder):
+            if ".tif" in file:
+                os.remove(os.path.join(tif_folder, file))
 
     # Each band corresponds to a gender-age category for disaggregated data,
     # or to the total population for aggregated data
@@ -1511,7 +1519,6 @@ def add_population_data_from_GEE_complex_geometries(
             stats = aggregate_raster_on_geometries(
                 raster_filename=filename,
                 geometry_list=gdf.geometry.tolist(),
-                stats="sum",
             )
 
             os.remove(filename)
@@ -1531,9 +1538,7 @@ def add_population_data_from_GEE_complex_geometries(
                     f"{band.split('_')[1].zfill(2)}"
                 )
 
-            gdf_with_pop[label] = [
-                int(round(pop, -2)) for pop in zonal_statistics[band]
-            ]
+            gdf_with_pop[label] = zonal_statistics[band]
 
     if progress_bar:
         my_bar.progress(1.0, text=" ")
@@ -1557,14 +1562,13 @@ def add_population_data(
     verbose: bool = False,
     text_on_streamlit: bool = True,
     progress_bar: bool = False,
-    force_from_wpAPI: bool = False,
-    force_from_GEE: bool = False,
+    method: str = "GEE",
 ) -> gpd.GeoDataFrame:
     """
     Add population data to a GeoDataFrame.
 
-    The function will use the Google Earth Engine to retrieve population data,
-    unless the user forces the download from the WorldPop API.
+    The function will use, by default, the Google Earth Engine to retrieve
+    population data. The other available method is the WorldPop API.
 
     Inputs
     ----------
@@ -1590,20 +1594,15 @@ def add_population_data(
         Default to True.
     progress_bar (bool, optional): if True, create a progress bar in Streamlit.
         Default to False.
-    force_from_wpAPI (bool, optional): if True, use the WorldPop API regardless
-        of the parameters. Default to False.
-    force_from_GEE (bool, optional): if True, use Google Earth Engine
-        regardless of the parameters. Default to False.
+    method (str): method used to download data. 'GEE' for Google Earth Engine,
+        'wpAPI' for WorldPop API. Default to 'GEE'.
 
     Returns
     -------
     gdf_with_pop (geopandas.GeoDataFrame): input GeoDataFrame with additional
         columns containing the (dis)aggregated population data.
     """
-    if force_from_wpAPI and force_from_GEE:
-        raise ValueError("You cannot force the download from both sources!")
-
-    if force_from_wpAPI:
+    if method == "wpAPI":
         return add_population_data_from_wpAPI(
             gdf=gdf,
             data_type=data_type,
@@ -1616,19 +1615,6 @@ def add_population_data(
             text_on_streamlit=text_on_streamlit,
             progress_bar=progress_bar,
         )
-
-    elif force_from_GEE:
-        return add_population_data_from_GEE(
-            gdf=gdf,
-            size_gdf=size_gdf,
-            data_type=data_type,
-            year=year,
-            aggregated=aggregated,
-            verbose=verbose,
-            text_on_streamlit=text_on_streamlit,
-            progress_bar=progress_bar,
-        )
-
     else:
         return add_population_data_from_GEE(
             gdf=gdf,
