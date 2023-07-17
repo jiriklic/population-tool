@@ -195,6 +195,7 @@ if st.session_state.stage >= 6:
             tif_folder=st.session_state.tif_folder,
             year=int(year),
             aggregated=aggregation_dict[aggregation],
+            rounding_to_which_power_of_ten=2,
             progress_bar=True,
         )
         delete_tif_folder(st.session_state.tif_folder)

@@ -597,6 +597,7 @@ def st_download_figures(
     label (str, optional): button label. Default to "Download shapefile".
     """
     with tempfile.TemporaryDirectory() as tmp:
+        # In this case there are several figures
         if not aggregated and not stacked:
             fig_list = []
             for i in range(len(gdf)):
@@ -622,6 +623,7 @@ def st_download_figures(
                     file_name=f"{filename}.zip",
                     mime="application/zip",
                 )
+        # In this case there is only one figure
         else:
             # Create an in-memory buffer
             buffer = io.BytesIO()
