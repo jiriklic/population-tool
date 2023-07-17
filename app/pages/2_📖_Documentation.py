@@ -84,9 +84,9 @@ st.markdown(
     <h3>WorldPop and Google Earth Engine</h3>
     <p align="justify">
         WorldPop's population data is accessible through their API, with the
-        option to download TIF files per country. However, a challenge arises
+        option to download TIFF files per country. However, a challenge arises
         when dealing with areas of interest that span multiple countries or
-        represent only small proportions of those countries. Downloading TIF
+        represent only small proportions of those countries. Downloading TIFF
         files for entire countries can be inconvenient and time-consuming,
         potentially causing memory issues.<br><br>
         Thankfully, alternative methods for data retrieval exist. Google Earth
@@ -95,7 +95,7 @@ st.markdown(
         population data, clip the raster according to the specific areas of
         interest, and then calculate zonal statistics. This approach allows for
         a more targeted extraction of population information without the need
-        to download complete country-level TIF files.<br><br>
+        to download complete country-level TIFF files.<br><br>
         For most shapefiles, the tool efficiently conducts all the computations
         on the server side of Google Earth Engine (GEE). This means that the
         heavy computational tasks, such as processing and analyzing the
@@ -108,7 +108,7 @@ st.markdown(
         limitations, a workaround is required. The solution involves creating
         a bounding box that encompasses the geometries of interest, importing
         it into GEE, clipping the raster data within GEE, downloading the
-        resulting TIF file, and performing
+        resulting TIFF file, and performing
         the calculation of zonal statistics locally.
     </p>
     <h3>Zonal statistics</h3>
