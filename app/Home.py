@@ -53,7 +53,7 @@ st.markdown(
         spatial modeling techniques and statistical methods to generate
         population estimates at fine-scale resolutions (100 meters).<br><br>
         The accuracy of the results provided
-        by the tool may vary depending on the region due to limitations of the
+        by this tool may vary depending on the region due to limitations of the
         WorldPop's population data, in terms of spatial and temporal
         resolution, as well as inherent uncertainty resulting from modeling and
         statistical techniques used for estimation. To maintain simplicity and
@@ -137,18 +137,26 @@ st.markdown(
             population data in the plot.
         </p>
         <li><p align="justify">
+            If you retrieved disaggregated data, you can choose whether to
+            visualise one figure for each area of interest (with population
+            pyramids) or one comprehensive figure (with stacked population
+            pyramids).
+        </p>
+        <li><p align="justify">
+            If you chose stacked population pyramids, you can choose a title
+            for the legend box.
+        </p>
+        <li><p align="justify">
             Create the plot, by clicking on the button.
         </p>
         <li><p align="justify">
-            The interactive plot shows population information for each area
-            of interest. If disaggregated data was selected, a population
-            pyramid will be created for each area.
+            Based on your choices above, the interactive plot includes one or
+            more figures.
         </p>
         <li><p align="justify">
             By clicking on <i>Download figure(s)</i>, you can download the
-            plots. The plots are saved as .png figures. If disaggregated data
-            was selected, a .zip file is created, containing one figure for
-            each area of interest.
+            plots. The plots are saved as .png figures. If multiple figures
+            are present, a .zip file containing them is downloaded.
         </p>
         <li><p align="justify">
             You can restart the analysis by clicking on the correponding

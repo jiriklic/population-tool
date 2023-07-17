@@ -61,11 +61,12 @@ st.markdown(
         regardless of their size.<br><br>
         WorldPop's population data includes different data types. The
         <b>unconstrained</b> dataset provides estimates based on various data
-        sources and modeling techniques, while the constrained dataset
+        sources and modeling techniques, while the <b>constrained</b> dataset
         incorporates additional constraints, such as known total population or
         administrative data, to improve the accuracy of the estimates.
-        Furthermore, WorldPop provides UN adjusted datasets, which align with
-        the United Nations' demographic estimates and projections.<br><br>
+        Furthermore, WorldPop provides <b>UN adjusted</b> datasets, which
+        align with the United Nations' demographic estimates and projections.
+        <br><br>
         The availability of data varies across different years. The total
         population data spans from the year 2000 to 2020, enabling researchers
         to analyze population trends and changes over a significant time
@@ -83,9 +84,9 @@ st.markdown(
     <h3>WorldPop and Google Earth Engine</h3>
     <p align="justify">
         WorldPop's population data is accessible through their API, with the
-        option to download TIF files per country. However, a challenge arises
+        option to download TIFF files per country. However, a challenge arises
         when dealing with areas of interest that span multiple countries or
-        represent only small proportions of those countries. Downloading TIF
+        represent only small proportions of those countries. Downloading TIFF
         files for entire countries can be inconvenient and time-consuming,
         potentially causing memory issues.<br><br>
         Thankfully, alternative methods for data retrieval exist. Google Earth
@@ -94,7 +95,7 @@ st.markdown(
         population data, clip the raster according to the specific areas of
         interest, and then calculate zonal statistics. This approach allows for
         a more targeted extraction of population information without the need
-        to download complete country-level TIF files.<br><br>
+        to download complete country-level TIFF files.<br><br>
         For most shapefiles, the tool efficiently conducts all the computations
         on the server side of Google Earth Engine (GEE). This means that the
         heavy computational tasks, such as processing and analyzing the
@@ -107,7 +108,7 @@ st.markdown(
         limitations, a workaround is required. The solution involves creating
         a bounding box that encompasses the geometries of interest, importing
         it into GEE, clipping the raster data within GEE, downloading the
-        resulting TIF file <a href='%s'>using <i>geemap</i></a>, and performing
+        resulting TIFF file, and performing
         the calculation of zonal statistics locally.
     </p>
     <h3>Zonal statistics</h3>
@@ -126,7 +127,6 @@ st.markdown(
     % (
         config["url_worldpop"],
         config["url_worldpop_GEE"],
-        config["url_geemap_download"],
     ),
     unsafe_allow_html=True,
 )
@@ -138,15 +138,15 @@ st.markdown(
         The images below illustrate the two methodologies described above,
         one for small shapefiles with simple geometries and the other for
         large shapefiles with complex geometries. When a step is labeled as
-        "GEE," it signifies that the process is carried out within GEE.
-        Conversely, the label "Local" indicates that the process is performed
-        on the client side, locally. The second methodology requires
-        significantly more computational time since multiple TIFF files must
-        be downloaded prior to calculating zonal statistics. The whole process
-        needs to be repeated for each requested population figure. When
-        querying aggregated data, only one raster is retrieved from the server,
-        whereas disaggregated data requires the processing of 36 rasters (18
-        age groups for 2 genders).
+        &ldquo;GEE&rdquo;, it signifies that the process is carried out within
+        GEE. Conversely, the label &ldquo;Local&rdquo; indicates that the
+        process is performed on the client side, locally. The second
+        methodology requires significantly more computational time since
+        multiple TIFF files must be downloaded prior to calculating zonal
+        statistics. The whole process needs to be repeated for each requested
+        population figure. When querying aggregated data, only one raster is
+        retrieved from the server, whereas disaggregated data requires the
+        processing of 36 rasters (18 age groups for 2 genders).
     </p>
     """,
     unsafe_allow_html=True,
