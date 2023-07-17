@@ -53,7 +53,7 @@ st.markdown(
         spatial modeling techniques and statistical methods to generate
         population estimates at fine-scale resolutions (100 meters).<br><br>
         The accuracy of the results provided
-        by the tool may vary depending on the region due to limitations of the
+        by this tool may vary depending on the region due to limitations of the
         WorldPop's population data, in terms of spatial and temporal
         resolution, as well as inherent uncertainty resulting from modeling and
         statistical techniques used for estimation. To maintain simplicity and

@@ -137,7 +137,7 @@ def format_tick_labels(x_list: list) -> List[str]:
     List(str): updated list of strings
     """
     if max(x_list) >= 1e6:
-        return [f"{int(x/1e6)}M" for x in x_list]
+        return [f"{int(x/1e6)}M" if x != 0 else "0" for x in x_list]
     else:
         return x_list
 
