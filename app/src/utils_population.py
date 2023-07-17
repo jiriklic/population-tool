@@ -411,6 +411,7 @@ def aggregate_raster_on_geometries(
     raster_filename: str,
     geometry_list: List[shapely.Geometry],
     library: str = "rasterio",
+    rounding_to_which_power_of_ten: int = 2,
 ) -> List[int]:
     """
     Compute zonal statistics of a raster file over a list of vector geometries.
@@ -423,6 +424,8 @@ def aggregate_raster_on_geometries(
     library (str, optional): library used to perform the zonal statistics.
         Options are 'rasterio', with the method 'mask.mask', and 'rasterstats',
         with the method 'zonal_stats'. Default to 'rasterio'.
+    rounding_to_which_power_of_ten (int, optional): power of ten to which the
+        population figures are rounded. Default to 2 (hundred).
 
     Returns:
     -------
@@ -450,7 +453,7 @@ def aggregate_raster_on_geometries(
                         raise
     else:
         raise ValueError(f"Library {library} not known.")
-    return [int(round(s, -2)) for s in stats_list]
+    return [int(round(s, -rounding_to_which_power_of_ten)) for s in stats_list]
 
 
 def find_intersections_polygon(
@@ -965,6 +968,7 @@ def add_population_data_from_wpAPI(
     data_folder: str = "app/data",
     tif_folder: str = "app/data/pop_data",
     clobber: bool = False,
+    rounding_to_which_power_of_ten: int = 2,
     verbose: bool = False,
     text_on_streamlit: bool = True,
     progress_bar: bool = False,
@@ -972,11 +976,12 @@ def add_population_data_from_wpAPI(
     """
     Add population data to a GeoDataFrame by aggregating WorldPop data.
 
-    Since WorldPop population data can only be downloaded per country, the
-    function calculates the intersections between the geometries in the
-    dataframe and each one of the world countries. Then it calculates zonal
-    statistics for each pair (geometry, country) and aggregate the results
-    per geometry.
+    Since WorldPop population data can only be downloaded per country using the
+    WorldPop API, the function calculates the intersections between the
+    geometries in the dataframe and each one of the world countries. Then it
+    calculates zonal statistics for each pair (geometry, country) and aggregate
+    the results per geometry. This function is not used in the Streamlit app,
+    as it requires a large amount of computational time and memory.
 
     Inputs
     ----------
@@ -995,6 +1000,8 @@ def add_population_data_from_wpAPI(
         saved.
     clobber (bool, optional): if True, overwrite data, if False do not
         download data if already present in the folder. Default to False.
+    rounding_to_which_power_of_ten (int, optional): power of ten to which the
+        population figures are rounded. Default to 2 (hundred).
     verbose (bool, optional): if True, print details run. Default to False.
     text_on_streamlit (bool, optional): if True, print to streamlit, otherwise
         via the print statement. Only used when verbose is True.
@@ -1116,6 +1123,7 @@ def add_population_data_from_wpAPI(
             pop_iso3_agg = aggregate_raster_on_geometries(
                 raster_filename=raster_file,
                 geometry_list=iso3_list_geometries,
+                rounding_to_which_power_of_ten=rounding_to_which_power_of_ten,
             )
             pop_partial_dict[label] = dict(
                 zip(iso3_list_indexes, pop_iso3_agg)
@@ -1153,6 +1161,7 @@ def add_population_data_from_GEE(
     tif_folder: str = "app/data/pop_data",
     year: int = 2020,
     aggregated: bool = True,
+    rounding_to_which_power_of_ten: int = 2,
     verbose: bool = False,
     text_on_streamlit: bool = True,
     progress_bar: bool = False,
@@ -1193,6 +1202,8 @@ def add_population_data_from_GEE(
     aggregated (bool, optional): if False, download disaggregated data (by
         gender and age), if True download only total population figure.
         Default to True.
+    rounding_to_which_power_of_ten (int, optional): power of ten to which the
+        population figures are rounded. Default to 2 (hundred).
     verbose (bool, optional): if True, print details run. Default to False.
     text_on_streamlit (bool, optional): if True, print to streamlit, otherwise
         via the print statement. Only used when verbose is True.
@@ -1217,6 +1228,7 @@ def add_population_data_from_GEE(
                 data_type=data_type,
                 year=year,
                 aggregated=aggregated,
+                rounding_to_which_power_of_ten=rounding_to_which_power_of_ten,
                 verbose=verbose,
                 text_on_streamlit=text_on_streamlit,
                 progress_bar=progress_bar,
@@ -1230,6 +1242,7 @@ def add_population_data_from_GEE(
                 tif_folder=tif_folder,
                 year=year,
                 aggregated=aggregated,
+                rounding_to_which_power_of_ten=rounding_to_which_power_of_ten,
                 verbose=verbose,
                 text_on_streamlit=text_on_streamlit,
                 progress_bar=progress_bar,
@@ -1242,6 +1255,7 @@ def add_population_data_from_GEE(
             tif_folder=tif_folder,
             year=year,
             aggregated=aggregated,
+            rounding_to_which_power_of_ten=rounding_to_which_power_of_ten,
             verbose=verbose,
             text_on_streamlit=text_on_streamlit,
             progress_bar=progress_bar,
@@ -1253,6 +1267,7 @@ def add_population_data_from_GEE_simple_geometries(
     data_type: str = "UNadj_constrained",
     year: int = 2020,
     aggregated: bool = True,
+    rounding_to_which_power_of_ten: int = 2,
     verbose: bool = False,
     text_on_streamlit: bool = True,
     progress_bar: bool = False,
@@ -1277,6 +1292,8 @@ def add_population_data_from_GEE_simple_geometries(
     aggregated (bool, optional): if False, download disaggregated data (by
         gender and age), if True download only total population figure.
         Default to True.
+    rounding_to_which_power_of_ten (int, optional): power of ten to which the
+        population figures are rounded. Default to 2 (hundred).
     verbose (bool, optional): if True, print details run. Default to False.
     text_on_streamlit (bool, optional): if True, print to streamlit, otherwise
         via the print statement. Only used when verbose is True.
@@ -1379,7 +1396,10 @@ def add_population_data_from_GEE_simple_geometries(
     gdf_with_pop = gdf.copy()
 
     for label, pop_data in pop_dict.items():
-        gdf_with_pop[label] = pop_data
+        gdf_with_pop[label] = [
+            int(round(pop, -rounding_to_which_power_of_ten))
+            for pop in pop_data
+        ]
 
     if progress_bar:
         my_bar.progress(1.0, text=" ")
@@ -1398,6 +1418,7 @@ def add_population_data_from_GEE_complex_geometries(
     year: int = 2020,
     aggregated: bool = True,
     width_coordinate: float = 20,
+    rounding_to_which_power_of_ten: int = 2,
     verbose: bool = False,
     text_on_streamlit: bool = True,
     progress_bar: bool = False,
@@ -1431,6 +1452,8 @@ def add_population_data_from_GEE_complex_geometries(
     width_coordinate (float, optional): maximum width (and height) of the
         rectangles (in degrees) into which the image is split before being
         downloaded. Default to 20.
+    rounding_to_which_power_of_ten (int, optional): power of ten to which the
+        population figures are rounded. Default to 2 (hundred).
     verbose (bool, optional): if True, print details run. Default to False.
     text_on_streamlit (bool, optional): if True, print to streamlit, otherwise
         via the print statement. Only used when verbose is True.
@@ -1580,6 +1603,7 @@ def add_population_data_from_GEE_complex_geometries(
             stats = aggregate_raster_on_geometries(
                 raster_filename=filename,
                 geometry_list=gdf.geometry.tolist(),
+                rounding_to_which_power_of_ten=rounding_to_which_power_of_ten,
             )
 
             os.remove(filename)
@@ -1620,6 +1644,7 @@ def add_population_data(
     data_folder: str = "app/data",
     tif_folder: str = "app/data/pop_data",
     clobber: bool = False,
+    rounding_to_which_power_of_ten: int = 2,
     verbose: bool = False,
     text_on_streamlit: bool = True,
     progress_bar: bool = False,
@@ -1649,6 +1674,8 @@ def add_population_data(
         saved.
     clobber (bool, optional): if True, overwrite data, if False do not
         download data if already present in the folder. Default to False.
+    rounding_to_which_power_of_ten (int, optional): power of ten to which the
+        population figures are rounded. Default to 2 (hundred).
     verbose (bool, optional): if True, print details run. Default to False.
     text_on_streamlit (bool, optional): if True, print to streamlit, otherwise
         via the print statement. Only used when verbose is True.
@@ -1672,6 +1699,7 @@ def add_population_data(
             data_folder=data_folder,
             tif_folder=tif_folder,
             clobber=clobber,
+            rounding_to_which_power_of_ten=rounding_to_which_power_of_ten,
             verbose=verbose,
             text_on_streamlit=text_on_streamlit,
             progress_bar=progress_bar,
@@ -1684,6 +1712,7 @@ def add_population_data(
             tif_folder=tif_folder,
             year=year,
             aggregated=aggregated,
+            rounding_to_which_power_of_ten=rounding_to_which_power_of_ten,
             verbose=verbose,
             text_on_streamlit=text_on_streamlit,
             progress_bar=progress_bar,

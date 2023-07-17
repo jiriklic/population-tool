@@ -124,13 +124,30 @@ def color_list_from_cmap(cmap_name: str, n: int) -> Union[List[str], str]:
     return [matplotlib.colors.to_hex(c) for c in color_list]
 
 
+def format_tick_labels(x_list: list) -> List[str]:
+    """
+    Format list of ticklabels for plotting.
+
+    Inputs
+    -------
+    x_list (str): list of floats or ints
+
+    Returns
+    -------
+    List(str): updated list of strings
+    """
+    if max(x_list) >= 1e6:
+        return [f"{int(x/1e6)}M" for x in x_list]
+    else:
+        return x_list
+
+
 def plot_pop_data(
     gdf: gpd.GeoDataFrame,
     col_label: str,
     legend_title: str,
-    plot_title: str,
     aggregated: bool = True,
-    joint: bool = False,
+    stacked: bool = False,
     cmap_name: str = "viridis",
 ) -> go.Figure:
     """
@@ -143,14 +160,12 @@ def plot_pop_data(
     col_label (str): column in the GeoDataFrame that contains the labels
         for plotting.
     legend_title (str): title of the legend for the plot (when
-        plotting disaggregated joint data) or the label of the y-axis (when
+        plotting disaggregated stacked data) or the label of the y-axis (when
         plotting aggregated data).
-    plot_title (str): title of the plot (only used when plotting
-        disaggregated disjoint data).
     aggregated (bool, optional): boolean indicating whether the population
         data aggregated or not. Default to True.
-    joint (bool, optional): boolean indicating whether a joint plot should be
-        created. This parameter is only used if aggregated is False.
+    stacked (bool, optional): boolean indicating whether a stacked barplot
+        should be created. This parameter is only used if aggregated is False.
         Default to False.
     cmap_name (str, optional): name of the color map to be used for the
         plot. Default to "viridis".
@@ -172,8 +187,7 @@ def plot_pop_data(
             gdf=gdf,
             col_label=col_label,
             legend_title=legend_title,
-            plot_title=plot_title,
-            joint=joint,
+            stacked=stacked,
             cmap_name=cmap_name,
         )
 
@@ -237,8 +251,7 @@ def plot_pop_data_disaggregated(
     gdf: gpd.GeoDataFrame,
     col_label: str,
     legend_title: str,
-    plot_title: str,
-    joint: bool = False,
+    stacked: bool = False,
     cmap_name: str = "viridis",
 ) -> go.Figure:
     """
@@ -251,10 +264,8 @@ def plot_pop_data_disaggregated(
     col_label (str): column in the GeoDataFrame that contains the labels
         for plotting.
     legend_title (str): title of the legend for the plot.
-    plot_title (str): title of the plot (only used when plotting
-        disaggregated disjoint data).
-    joint (bool, optional): boolean indicating whether a joint plot should be
-        created. Default to False.
+    stacked (bool, optional): boolean indicating whether a stacked barplot
+        should be created. Default to False.
     cmap_name (str, optional): name of the color map to be used for the
         plot. Default to "viridis".
 
@@ -263,8 +274,8 @@ def plot_pop_data_disaggregated(
     fig (plotly.graph_objs.Figure): plotly figure object containing the plot.
 
     """
-    if joint:
-        return plot_pop_data_joint(
+    if stacked:
+        return plot_pop_data_stacked(
             gdf=gdf,
             col_label=col_label,
             legend_title=legend_title,
@@ -272,17 +283,17 @@ def plot_pop_data_disaggregated(
         )
     else:
         return plot_pop_data_split(
-            gdf=gdf, col_label=col_label, plot_title=plot_title
+            gdf=gdf,
+            col_label=col_label,
         )
 
 
 def plot_pop_data_split(
     gdf: gpd.GeoDataFrame,
     col_label: str,
-    plot_title: str,
 ) -> go.Figure:
     """
-    Plot disaggregated disjoint population data on a bar chart.
+    Plot disaggregated non-stacked population data on a bar chart.
 
     One plot per gender/age will be visualised.
 
@@ -292,7 +303,6 @@ def plot_pop_data_split(
         data.
     col_label (str): column in the GeoDataFrame that contains the labels
         for plotting.
-    plot_title (str): title of the plot.
 
     Returns
     -------
@@ -303,8 +313,17 @@ def plot_pop_data_split(
     data_max = data_pop.max()
 
     order_or_mag = math.floor(math.log(data_max, 10))
-    axis_max = math.ceil(data_max / (10**order_or_mag)) * 10**order_or_mag
-    ticks = list(range(0, axis_max + 10**order_or_mag, 10**order_or_mag))
+    axis_max = (
+        math.ceil(data_max * 2 / (10**order_or_mag)) / 2 * 10**order_or_mag
+    )
+    ticks = list(
+        np.arange(
+            0,
+            axis_max + 0.5 * (10**order_or_mag),
+            0.5 * (10**order_or_mag),
+            dtype=int,
+        )
+    )
 
     y = [int(col[-2:]) for col in gdf.columns if "pop_m" in col]
 
@@ -362,7 +381,7 @@ def plot_pop_data_split(
                     ]
                 },
                 {
-                    "title": f"<b>{plot_title}: {gdf[col_label].tolist()[i]}",
+                    "title": f"<b>{gdf[col_label].tolist()[i]}",
                     "showlegend": True,
                 },
             ],
@@ -375,7 +394,9 @@ def plot_pop_data_split(
         showline=True,
         linecolor="#000",
         tickvals=[-t for t in ticks if t != 0][::-1] + ticks,
-        ticktext=[t for t in ticks if t != 0][::-1] + ticks,
+        ticktext=format_tick_labels(
+            [t for t in ticks if t != 0][::-1] + ticks
+        ),
     )
 
     fig = fig.update_layout(
@@ -395,14 +416,12 @@ def plot_pop_data_split(
         ],
     )
 
-    fig.update_layout(
-        title_text=f"<b>{plot_title}: {gdf[col_label].tolist()[0]}"
-    )
+    fig.update_layout(title_text=f"<b>{gdf[col_label].tolist()[0]}")
 
     return fig
 
 
-def plot_pop_data_joint(
+def plot_pop_data_stacked(
     gdf: gpd.GeoDataFrame,
     col_label: str,
     legend_title: str,
@@ -426,10 +445,23 @@ def plot_pop_data_joint(
     fig (plotly.graph_objs.Figure): plotly figure object containing the plot.
 
     """
+    data_max = max(
+        gdf.filter(like="pop_m_").sum().tolist()
+        + gdf.filter(like="pop_f_").sum().tolist()
+    )
+    order_or_mag = math.floor(math.log(data_max, 10))
+    axis_max = math.ceil(data_max / (10**order_or_mag)) * 10**order_or_mag
+    ticks = list(
+        np.arange(
+            0,
+            axis_max + 0.5 * (10**order_or_mag),
+            0.5 * (10**order_or_mag),
+            dtype=int,
+        )
+    )
+
     y = [int(col[-2:]) for col in gdf.columns if "pop_m" in col]
     colors = color_list_from_cmap(cmap_name, len(gdf))[::-1]
-
-    fig = go.Figure()
 
     fig = make_subplots(
         rows=1,
@@ -437,6 +469,7 @@ def plot_pop_data_joint(
         subplot_titles=["<b>Women", "<b>Men"],
         shared_yaxes=True,
         horizontal_spacing=0,
+        specs=[[{"secondary_y": True}, {"secondary_y": True}]],
     )
 
     for i in range(len(gdf)):
@@ -444,39 +477,60 @@ def plot_pop_data_joint(
             go.Bar(
                 y=y,
                 x=gdf.iloc[i][
-                    [col for col in gdf.columns if "pop_m" in col]
+                    [col for col in gdf.columns if "pop_f" in col]
+                ].values
+                * -1,
+                hovertext=gdf.iloc[i][
+                    [col for col in gdf.columns if "pop_f" in col]
                 ].values,
+                hoverinfo="text",
                 orientation="h",
-                name=gdf[col_label].tolist()[i],
-                hoverinfo="x",
                 marker=dict(color=colors[i]),
                 width=3,
+                showlegend=False,
             ),
+            secondary_y=False,
             row=1,
-            col=2,
+            col=1,
         )
         fig.add_trace(
             go.Bar(
                 y=y,
                 x=gdf.iloc[i][
-                    [col for col in gdf.columns if "pop_f" in col]
-                ].values
-                * -1,
+                    [col for col in gdf.columns if "pop_m" in col]
+                ].values,
+                hovertext=gdf.iloc[i][
+                    [col for col in gdf.columns if "pop_m" in col]
+                ].values,
+                hoverinfo="text",
                 orientation="h",
-                #             name='Women',
-                hoverinfo="x",
                 marker=dict(color=colors[i]),
                 width=3,
-                showlegend=False,
+                name=gdf[col_label].tolist()[i],
             ),
+            secondary_y=True,
             row=1,
-            col=1,
+            col=2,
         )
+
+    fig = fig.update_xaxes(
+        showline=False,
+        linecolor="#000",
+        tickvals=[-t for t in ticks if t != 0][::-1] + ticks,
+        ticktext=format_tick_labels(
+            [t for t in ticks if t != 0][::-1] + ticks
+        ),
+    )
+
+    fig.layout.yaxis4.update(ticks="", showticklabels=False)
 
     fig.update_layout(
         barmode="stack",
         template="ggplot2",
-        legend={"title": legend_title + "\n", "traceorder": "normal"},
+        legend={
+            "title": f"<b>{legend_title}</b>" + "\n\n",
+            "traceorder": "normal",
+        },
     )
 
     return fig
@@ -518,6 +572,7 @@ def st_download_figures(
     fig: go.Figure,
     gdf: gpd.GeoDataFrame,
     aggregated: bool,
+    stacked: bool,
     col_label: str,
     filename: str,
     label: str = "Download figure(s)",
@@ -533,6 +588,8 @@ def st_download_figures(
     fig (go.Figure): input figure.
     gdf (geopandas.GeoDataFrame): input GeoDataFrame.
     aggregated (bool): True if data is aggregated (by gender and age).
+    stacked (bool): True if disaggregated data should be visualised as stacked
+        pyramid, False otherwise.
     col_label (str): column in the GeoDataFrame that contains the labels
         for plotting. Here it is used for the title and to retrieve the
         snapshots of the figure.
@@ -540,8 +597,8 @@ def st_download_figures(
     label (str, optional): button label. Default to "Download shapefile".
     """
     with tempfile.TemporaryDirectory() as tmp:
-        # if "updatemenus" in fig["layout"]:
-        if not aggregated:
+        # In this case there are several figures
+        if not aggregated and not stacked:
             fig_list = []
             for i in range(len(gdf)):
                 fig_i = copy.deepcopy(fig)
@@ -566,6 +623,7 @@ def st_download_figures(
                     file_name=f"{filename}.zip",
                     mime="application/zip",
                 )
+        # In this case there is only one figure
         else:
             # Create an in-memory buffer
             buffer = io.BytesIO()
