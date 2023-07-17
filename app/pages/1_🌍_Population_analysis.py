@@ -70,6 +70,10 @@ aggregation_dict = {
     aggregation_default_options[0]: True,
     aggregation_default_options[1]: False,
 }
+yes_no_dict = {
+    "Yes": True,
+    "No": False,
+}
 
 # Create tif folder
 if "tif_folder" not in st.session_state:
@@ -224,21 +228,36 @@ if st.session_state.stage >= 6:
         args=(6,),
     )
 
+    stacked_bool = False
+    if not aggregation_dict[aggregation]:
+        stacked = st.selectbox(
+            "Plot stacked population pyramid?",
+            options=["No", "Yes"],
+            index=0,
+            on_change=set_stage,
+            args=(6,),
+        )
+        stacked_bool = yes_no_dict[stacked]
+        legend_title = st.text_input(
+            "Type legend title (only for stacked pyramids)",
+            value="Legend",
+            disabled=not stacked_bool,
+            on_change=set_stage,
+            args=(6,),
+        )
+    else:
+        legend_title = ""
+
     plot_button = st.button("Create plot", on_click=set_stage, args=(7,))
 
 
 if st.session_state.stage >= 7:
-    legend_title = ""
-    plot_title = "Name geometry"
-    joint = False
-
     fig = plot_pop_data(
         gdf=st.session_state.gdf_with_pop,
-        joint=joint,
         col_label=col_label,
         legend_title=legend_title,
-        plot_title=plot_title,
         aggregated=aggregation_dict[aggregation],
+        stacked=stacked_bool,
     )
 
     st.plotly_chart(fig, use_container_width=True)
@@ -250,6 +269,7 @@ if st.session_state.stage >= 7:
         filename="Figure_pop_data",
         label="Download figure(s)",
         aggregated=aggregation_dict[aggregation],
+        stacked=stacked_bool,
     )
 
     st.button("Reset analysis", on_click=set_stage, args=(0,))
