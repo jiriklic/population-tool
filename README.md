@@ -16,11 +16,10 @@ The accuracy of the results provided by the tool may vary depending on the regio
 
 #### Requirements
 
-The Python version currently used is 3.9. Please install all packages from
-``requirements.txt``:
+The Python version currently used is 3.10. Please install all packages with [Poetry](https://python-poetry.org/):
 
 ```shell
-pip install -r requirements.txt
+poetry install --no-root
 ```
 
 #### Google Earth Engine authentication
